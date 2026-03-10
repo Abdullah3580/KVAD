@@ -5,7 +5,6 @@ generator client {
 
 datasource db {
   provider = "postgresql"
-  url      = env("DATABASE_URL") // এই লাইনটি আগে ছিল না, যা এখন যোগ করা হয়েছে
   schemas  = ["auth", "public"]
 }
 
