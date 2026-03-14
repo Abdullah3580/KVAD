@@ -1,596 +1,734 @@
 "use client";
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useMemo } from "react";
+import { useRouter } from "next/navigation";
 import { supabase } from "@/lib/supabase";
-import {
-  Plus, Edit, Trash2, Save, X, Package,
-  LayoutDashboard, Image as ImageIcon, Tag,
-  ToggleLeft, ToggleRight, Star, AlertCircle,
-  CheckCircle, RefreshCw, ShoppingBag, TrendingUp,
-} from "lucide-react";
+import { useAuth } from "@/context/AuthContext";
+import { T, fmt, STATUS_META, normalise } from "@/lib/constants";
+import { Product, Order } from "@/lib/types";
+import { Btn, SafeImg, Skeleton } from "@/components/ui";
+import { Stars } from "@/components/ui/Ic";
+import Ic from "@/components/ui/Ic";
 
-/* ═══════════════════════════════════════════════════
-   KVAD ADMIN PANEL — Full Version
-   Products Table columns (from Prisma schema):
-   id, name, cat, sub, brand, price, was,
-   rating, reviews, badge, stock, images[],
-   is_active, is_featured
-═══════════════════════════════════════════════════ */
+type Tab = "dashboard"|"products"|"orders"|"customers"|"reviews"|"coupons"|"analytics"|"settings";
 
-const T = {
-  bg:     "#080810",
-  card:   "#0E0E18",
-  raised: "#141422",
-  border: "#1E1E30",
-  text:   "#F2E8D9",
-  muted:  "#6E6E88",
-  dim:    "#363650",
-  coral:  "#FF6B4A",
-  ok:     "#3DEBA0",
-  gold:   "#F5C842",
-  danger: "#FF4466",
-};
+const TABS: {id:Tab; icon:string; label:string}[] = [
+  {id:"dashboard",  icon:"📊", label:"ড্যাশবোর্ড"},
+  {id:"products",   icon:"📦", label:"পণ্য"},
+  {id:"orders",     icon:"🧾", label:"অর্ডার"},
+  {id:"customers",  icon:"👥", label:"কাস্টমার"},
+  {id:"reviews",    icon:"⭐", label:"রিভিউ"},
+  {id:"coupons",    icon:"🏷️", label:"কুপন"},
+  {id:"analytics",  icon:"📈", label:"Analytics"},
+  {id:"settings",   icon:"⚙️", label:"সেটিংস"},
+];
 
-/* ── types ── */
-interface Product {
-  id: number;
-  name: string;
-  cat: string | null;
-  sub: string | null;
-  brand: string | null;
-  price: number | null;
-  was: number | null;
-  rating: number | null;
-  reviews: number | null;
-  badge: string | null;
-  stock: number | null;
-  images: string[];
-  is_active: boolean | null;
-  is_featured: boolean | null;
-}
-
-interface Order {
-  id: string;
-  order_number: string;
-  status: string | null;
-  total: number;
-  shipping_address: string | null;
-  created_at: string | null;
-  shipping_name: string | null;
-}
-
-const CATS = ["Bags", "Saree", "Panjabi", "Electronics", "Beauty", "Home", "Others"];
-const BADGES = ["", "NEW", "HOT", "SALE", "LIMITED", "FEATURED"];
-
-/* ── small helpers ── */
-const Inp = ({
-  label, value, onChange, type = "text", placeholder = "", required = false,
-}: {
-  label: string; value: string | number; onChange: (v: string) => void;
-  type?: string; placeholder?: string; required?: boolean;
-}) => (
-  <div style={{ display: "flex", flexDirection: "column", gap: 5 }}>
-    <label style={{ fontSize: 11, fontWeight: 700, color: T.muted, textTransform: "uppercase", letterSpacing: "0.06em" }}>
-      {label}{required && <span style={{ color: T.coral }}> *</span>}
-    </label>
-    <input
-      type={type}
-      value={value}
-      onChange={e => onChange(e.target.value)}
-      placeholder={placeholder}
-      style={{
-        background: T.raised, border: `1px solid ${T.border}`, borderRadius: 8,
-        padding: "10px 13px", color: T.text, fontSize: 13,
-        fontFamily: "inherit", outline: "none", width: "100%", boxSizing: "border-box" as const,
-      }}
-    />
-  </div>
-);
-
-const Sel = ({
-  label, value, onChange, options,
-}: {
-  label: string; value: string; onChange: (v: string) => void; options: string[];
-}) => (
-  <div style={{ display: "flex", flexDirection: "column", gap: 5 }}>
-    <label style={{ fontSize: 11, fontWeight: 700, color: T.muted, textTransform: "uppercase", letterSpacing: "0.06em" }}>{label}</label>
-    <select
-      value={value}
-      onChange={e => onChange(e.target.value)}
-      style={{
-        background: T.raised, border: `1px solid ${T.border}`, borderRadius: 8,
-        padding: "10px 13px", color: T.text, fontSize: 13,
-        fontFamily: "inherit", outline: "none", cursor: "pointer",
-      }}
-    >
-      {options.map(o => <option key={o} value={o}>{o || "— None —"}</option>)}
-    </select>
-  </div>
-);
-
-/* ══════════════════════════════════════════════════
-   ADD / EDIT PRODUCT MODAL
-══════════════════════════════════════════════════ */
-function ProductModal({
-  initial, onClose, onSaved,
-}: {
-  initial?: Product | null;
-  onClose: () => void;
-  onSaved: () => void;
-}) {
-  const isEdit = !!initial;
-
-  const [form, setForm] = useState({
-    name:       initial?.name        ?? "",
-    cat:        initial?.cat         ?? "Bags",
-    sub:        initial?.sub         ?? "",
-    brand:      initial?.brand       ?? "",
-    price:      String(initial?.price   ?? ""),
-    was:        String(initial?.was     ?? ""),
-    stock:      String(initial?.stock   ?? ""),
-    rating:     String(initial?.rating  ?? "5.0"),
-    reviews:    String(initial?.reviews ?? "0"),
-    badge:      initial?.badge       ?? "",
-    images:     (initial?.images ?? []).join("\n"),
-    is_active:  initial?.is_active   ?? true,
-    is_featured: initial?.is_featured ?? false,
-  });
-
-  const [saving, setSaving] = useState(false);
-  const [err,    setErr]    = useState("");
-
-  const set = (key: string) => (v: string | boolean) =>
-    setForm(f => ({ ...f, [key]: v }));
-
-  const handleSave = async () => {
-    if (!form.name.trim()) { setErr("Product name is required."); return; }
-    if (!form.price)        { setErr("Price is required."); return; }
-    setErr("");
-    setSaving(true);
-
-    const payload = {
-      name:        form.name.trim(),
-      cat:         form.cat   || null,
-      sub:         form.sub   || null,
-      brand:       form.brand || null,
-      price:       parseFloat(form.price) || null,
-      was:         parseFloat(form.was)   || null,
-      stock:       parseInt(form.stock)   || 0,
-      rating:      parseFloat(form.rating) || 5.0,
-      reviews:     parseInt(form.reviews)  || 0,
-      badge:       form.badge || null,
-      images:      form.images.split("\n").map(s => s.trim()).filter(Boolean),
-      is_active:   form.is_active,
-      is_featured: form.is_featured,
-    };
-
-    const { error } = isEdit
-      ? await supabase.from("products").update(payload).eq("id", initial!.id)
-      : await supabase.from("products").insert([payload]);
-
-    setSaving(false);
-    if (error) { setErr("Error: " + error.message); return; }
-    onSaved();
-    onClose();
-  };
-
+function StatCard({icon,label,value,color,sub}:{icon:string;label:string;value:string|number;color:string;sub?:string}) {
   return (
-    <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.88)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 1000, padding: 20 }}>
-      <div style={{ background: T.card, borderRadius: 24, width: "100%", maxWidth: 620, border: `1px solid ${T.border}`, maxHeight: "92vh", overflowY: "auto" }}>
-
-        {/* header */}
-        <div style={{ padding: "22px 28px", borderBottom: `1px solid ${T.border}`, display: "flex", justifyContent: "space-between", alignItems: "center", position: "sticky", top: 0, background: T.card, zIndex: 1 }}>
-          <h2 style={{ fontWeight: 900, fontSize: 20 }}>{isEdit ? "✏️ Edit Product" : "➕ Add New Product"}</h2>
-          <button onClick={onClose} style={{ background: "none", border: "none", color: T.muted, cursor: "pointer" }}>
-            <X size={22} />
-          </button>
-        </div>
-
-        <div style={{ padding: 28, display: "flex", flexDirection: "column", gap: 16 }}>
-
-          {/* error */}
-          {err && (
-            <div style={{ background: T.danger + "22", border: `1px solid ${T.danger}55`, borderRadius: 8, padding: "10px 14px", display: "flex", gap: 8, alignItems: "center", color: T.danger, fontSize: 13 }}>
-              <AlertCircle size={16} /> {err}
-            </div>
-          )}
-
-          {/* name */}
-          <Inp label="Product Name" value={form.name} onChange={set("name")} placeholder="e.g. Premium Leather Bag" required />
-
-          {/* cat + sub */}
-          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
-            <Sel label="Category" value={form.cat} onChange={set("cat")} options={CATS} />
-            <Inp label="Sub-category" value={form.sub} onChange={set("sub")} placeholder="e.g. Tote, Clutch" />
-          </div>
-
-          {/* brand + badge */}
-          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
-            <Inp label="Brand" value={form.brand} onChange={set("brand")} placeholder="e.g. KVAD" />
-            <Sel label="Badge" value={form.badge} onChange={set("badge")} options={BADGES} />
-          </div>
-
-          {/* price + was */}
-          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
-            <Inp label="Sale Price (৳)" value={form.price} onChange={set("price")} type="number" placeholder="1200" required />
-            <Inp label="Original Price (৳)" value={form.was} onChange={set("was")} type="number" placeholder="1500" />
-          </div>
-
-          {/* stock + rating + reviews */}
-          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 12 }}>
-            <Inp label="Stock" value={form.stock} onChange={set("stock")} type="number" placeholder="50" />
-            <Inp label="Rating (0–5)" value={form.rating} onChange={set("rating")} type="number" placeholder="4.5" />
-            <Inp label="Reviews" value={form.reviews} onChange={set("reviews")} type="number" placeholder="0" />
-          </div>
-
-          {/* images */}
-          <div style={{ display: "flex", flexDirection: "column", gap: 5 }}>
-            <label style={{ fontSize: 11, fontWeight: 700, color: T.muted, textTransform: "uppercase", letterSpacing: "0.06em" }}>
-              Image URLs <span style={{ color: T.dim, fontWeight: 400, textTransform: "none" }}>(one per line)</span>
-            </label>
-            <textarea
-              value={form.images}
-              onChange={e => set("images")(e.target.value)}
-              placeholder={"https://example.com/image1.jpg\nhttps://example.com/image2.jpg"}
-              rows={4}
-              style={{
-                background: T.raised, border: `1px solid ${T.border}`, borderRadius: 8,
-                padding: "10px 13px", color: T.text, fontSize: 12,
-                fontFamily: "monospace", outline: "none", resize: "vertical", width: "100%", boxSizing: "border-box" as const,
-              }}
-            />
-            {/* image preview */}
-            {form.images.split("\n").filter(Boolean).length > 0 && (
-              <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginTop: 4 }}>
-                {form.images.split("\n").map(s => s.trim()).filter(Boolean).map((url, i) => (
-                  <img key={i} src={url} alt="" onError={e => (e.currentTarget.style.display = "none")}
-                    style={{ width: 60, height: 60, objectFit: "cover", borderRadius: 8, border: `1px solid ${T.border}` }} />
-                ))}
-              </div>
-            )}
-          </div>
-
-          {/* toggles */}
-          <div style={{ display: "flex", gap: 16 }}>
-            {[
-              { key: "is_active",   label: "Active (visible in shop)", val: form.is_active },
-              { key: "is_featured", label: "Featured (shown first)",    val: form.is_featured },
-            ].map(({ key, label, val }) => (
-              <button key={key} onClick={() => set(key)(!val)}
-                style={{ display: "flex", alignItems: "center", gap: 8, background: T.raised, border: `1px solid ${val ? T.ok : T.border}`, borderRadius: 10, padding: "10px 16px", cursor: "pointer", color: val ? T.ok : T.muted, fontFamily: "inherit", fontSize: 13, fontWeight: 700, flex: 1 }}>
-                {val ? <ToggleRight size={20} /> : <ToggleLeft size={20} />}
-                {label}
-              </button>
-            ))}
-          </div>
-
-          {/* actions */}
-          <div style={{ display: "flex", gap: 10, paddingTop: 8 }}>
-            <button onClick={onClose}
-              style={{ flex: 1, background: "none", border: `1px solid ${T.border}`, color: T.muted, padding: "13px", borderRadius: 12, cursor: "pointer", fontFamily: "inherit", fontSize: 14, fontWeight: 700 }}>
-              Cancel
-            </button>
-            <button onClick={handleSave} disabled={saving}
-              style={{ flex: 2, background: saving ? T.dim : T.coral, color: "#000", border: "none", padding: "13px", borderRadius: 12, cursor: saving ? "not-allowed" : "pointer", fontFamily: "inherit", fontSize: 14, fontWeight: 900, display: "flex", alignItems: "center", justifyContent: "center", gap: 8 }}>
-              {saving ? <><RefreshCw size={16} style={{ animation: "spin 1s linear infinite" }} /> Saving…</> : <><CheckCircle size={16} /> {isEdit ? "Save Changes" : "Add Product"}</>}
-            </button>
-          </div>
-        </div>
+    <div style={{background:T.card,border:`1px solid ${T.border}`,borderRadius:14,padding:"20px 22px"}}>
+      <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",marginBottom:10}}>
+        <span style={{fontSize:26}}>{icon}</span>
+        <span style={{fontSize:10,background:color+"22",color,border:`1px solid ${color}44`,borderRadius:20,padding:"3px 10px",fontWeight:700}}>LIVE</span>
       </div>
+      <p style={{fontSize:11,color:T.muted,textTransform:"uppercase",letterSpacing:".07em",marginBottom:4}}>{label}</p>
+      <p className="playfair" style={{fontSize:26,fontWeight:800,color}}>{value}</p>
+      {sub && <p style={{fontSize:11,color:T.dim,marginTop:4}}>{sub}</p>}
     </div>
   );
 }
 
-/* ══════════════════════════════════════════════════
-   ORDERS TAB
-══════════════════════════════════════════════════ */
-function OrdersTab() {
-  const [orders, setOrders]   = useState<Order[]>([]);
+const BLANK_P = {name:"",cat:"Bags",sub:"",brand:"",price:"",was:"",badge:"",stock:"",images:"",is_active:true,is_featured:false,description:""};
+const BLANK_C = {code:"",discount:"",type:"percent",min_order:"0",max_uses:"",expires_at:"",is_active:true};
+
+export default function AdminPage() {
+  const {user, loading:authLoading} = useAuth();
+  const router = useRouter();
+  const [authorized, setAuthorized] = useState(false);
+  const [tab, setTab]   = useState<Tab>("dashboard");
   const [loading, setLoading] = useState(true);
 
-  const STATUS_COLOR: Record<string, string> = {
-    pending:    T.gold,
-    processing: T.coral,
-    shipped:    "#4DC4FF",
-    delivered:  T.ok,
-    cancelled:  T.danger,
-  };
+  /* data */
+  const [products,  setProducts]  = useState<Product[]>([]);
+  const [orders,    setOrders]    = useState<Order[]>([]);
+  const [customers, setCustomers] = useState<any[]>([]);
+  const [reviews,   setReviews]   = useState<any[]>([]);
+  const [coupons,   setCoupons]   = useState<any[]>([]);
+  const [settings,  setSettings]  = useState<Record<string,string>>({});
 
-  const fetchOrders = useCallback(async () => {
+  /* forms */
+  const [pForm, setPForm] = useState(BLANK_P);
+  const [editPId, setEditPId] = useState<number|null>(null);
+  const [pSaving, setPSaving] = useState(false);
+  const [pMsg,    setPMsg]    = useState("");
+  const [cForm,   setCForm]   = useState(BLANK_C);
+  const [editCId, setEditCId] = useState<string|null>(null);
+  const [cSaving, setCSaving] = useState(false);
+
+  /* filters */
+  const [searchP,     setSearchP]     = useState("");
+  const [orderFilter, setOrderFilter] = useState("all");
+  const [settSaved,   setSettSaved]   = useState(false);
+
+  /* ── Auth check ── */
+  useEffect(() => {
+    if (authLoading) return;
+    if (!user) { router.push("/shop"); return; }
+    supabase.from("users").select("role").eq("id", user.id).single().then(({data}) => {
+      if (data?.role !== "admin") { router.push("/shop"); return; }
+      setAuthorized(true);
+    });
+  }, [user, authLoading]);
+
+  /* ── Load all data ── */
+  const loadAll = useCallback(async () => {
     setLoading(true);
-    const { data } = await supabase.from("orders").select("*").order("created_at", { ascending: false });
-    setOrders(data ?? []);
+    const [
+      {data:pd}, {data:od}, {data:ud}, {data:rd}, {data:cpd}, {data:sd}
+    ] = await Promise.all([
+      supabase.from("products").select("*").order("id",{ascending:false}),
+      supabase.from("orders").select("*").order("created_at",{ascending:false}).limit(200),
+      supabase.from("users").select("*").order("created_at",{ascending:false}),
+      supabase.from("product_reviews").select("*, products(name)").order("created_at",{ascending:false}),
+      supabase.from("coupons").select("*").order("created_at",{ascending:false}),
+      supabase.from("site_settings").select("*"),
+    ]);
+    setProducts((pd??[]).map(normalise).filter(Boolean) as Product[]);
+    setOrders((od??[]) as Order[]);
+    setCustomers(ud??[]);
+    setReviews(rd??[]);
+    setCoupons(cpd??[]);
+    const sMap:Record<string,string> = {};
+    (sd??[]).forEach((s:any) => { sMap[s.key] = s.value; });
+    setSettings(sMap);
     setLoading(false);
   }, []);
 
-  useEffect(() => { fetchOrders(); }, [fetchOrders]);
+  useEffect(() => { if (authorized) loadAll(); }, [authorized]);
 
-  const updateStatus = async (id: string, status: string) => {
-    await supabase.from("orders").update({ status }).eq("id", id);
-    fetchOrders();
+  /* ── Product CRUD ── */
+  const saveProduct = async () => {
+    if (!pForm.name||!pForm.price) { setPMsg("নাম ও দাম আবশ্যক"); return; }
+    setPSaving(true); setPMsg("");
+    const imgs = pForm.images.split(",").map(s=>s.trim()).filter(Boolean);
+    const payload = {name:pForm.name,cat:pForm.cat,sub:pForm.sub,brand:pForm.brand,price:+pForm.price,was:+pForm.was||+pForm.price,badge:pForm.badge||null,stock:+pForm.stock||0,images:imgs,is_active:pForm.is_active,is_featured:pForm.is_featured,description:pForm.description};
+    const {error} = editPId
+      ? await supabase.from("products").update(payload).eq("id",editPId)
+      : await supabase.from("products").insert(payload);
+    if (error) setPMsg("❌ "+error.message);
+    else { setPMsg(editPId?"✅ আপডেট হয়েছে":"✅ পণ্য যোগ হয়েছে"); await loadAll(); setPForm(BLANK_P); setEditPId(null); }
+    setPSaving(false);
+  };
+  const deleteProduct = async (id:number) => {
+    if (!confirm("এই পণ্য মুছে ফেলবেন?")) return;
+    await supabase.from("products").delete().eq("id",id);
+    setProducts(p=>p.filter(x=>x.id!==id));
+  };
+  const toggleProductActive = async (p:Product) => {
+    await supabase.from("products").update({is_active:!p.is_active}).eq("id",p.id);
+    setProducts(prev=>prev.map(x=>x.id===p.id?{...x,is_active:!p.is_active}:x));
   };
 
-  if (loading) return <p style={{ color: T.muted, padding: 20 }}>Loading orders…</p>;
-  if (orders.length === 0) return (
-    <div style={{ textAlign: "center", padding: "80px 0", color: T.muted }}>
-      <ShoppingBag size={48} color={T.dim} />
-      <p style={{ marginTop: 16, fontSize: 16 }}>No orders yet</p>
+  /* ── Order ── */
+  const updateOrderStatus = async (id:string, status:string) => {
+    await supabase.from("orders").update({status}).eq("id",id);
+    setOrders(prev=>prev.map(o=>o.id===id?{...o,status}:o));
+  };
+
+  /* ── Customer ── */
+  const updateCustomerRole = async (id:string, role:string) => {
+    await supabase.from("users").update({role}).eq("id",id);
+    setCustomers(prev=>prev.map(c=>c.id===id?{...c,role}:c));
+  };
+
+  /* ── Reviews ── */
+  const deleteReview = async (id:string) => {
+    if (!confirm("এই রিভিউ মুছবেন?")) return;
+    await supabase.from("product_reviews").delete().eq("id",id);
+    setReviews(prev=>prev.filter(r=>r.id!==id));
+  };
+
+  /* ── Coupons ── */
+  const saveCoupon = async () => {
+    if (!cForm.code||!cForm.discount) { alert("কোড ও ছাড় আবশ্যক"); return; }
+    setCSaving(true);
+    const payload = {code:cForm.code.toUpperCase(),discount:+cForm.discount,type:cForm.type,min_order:+cForm.min_order,max_uses:cForm.max_uses?+cForm.max_uses:null,expires_at:cForm.expires_at||null,is_active:cForm.is_active,used_count:0};
+    const {error} = editCId
+      ? await supabase.from("coupons").update(payload).eq("id",editCId)
+      : await supabase.from("coupons").insert(payload);
+    if (!error) { await loadAll(); setCForm(BLANK_C); setEditCId(null); }
+    setCSaving(false);
+  };
+  const toggleCoupon = async (id:string, val:boolean) => {
+    await supabase.from("coupons").update({is_active:val}).eq("id",id);
+    setCoupons(prev=>prev.map(c=>c.id===id?{...c,is_active:val}:c));
+  };
+  const deleteCoupon = async (id:string) => {
+    if (!confirm("এই কুপন মুছবেন?")) return;
+    await supabase.from("coupons").delete().eq("id",id);
+    setCoupons(prev=>prev.filter(c=>c.id!==id));
+  };
+
+  /* ── Settings ── */
+  const saveSetting = async (key:string, value:string) => {
+    await supabase.from("site_settings").upsert({key,value},{onConflict:"key"});
+    setSettings(prev=>({...prev,[key]:value}));
+  };
+  const saveAllSettings = async () => {
+    await Promise.all(Object.entries(settings).map(([k,v])=>saveSetting(k,v)));
+    setSettSaved(true); setTimeout(()=>setSettSaved(false),2000);
+  };
+
+  /* ── Analytics ── */
+  const stats = useMemo(()=>({
+    revenue:     orders.filter(o=>o.status!=="cancelled").reduce((s,o)=>s+(+o.total),0),
+    orders:      orders.length,
+    pending:     orders.filter(o=>o.status==="pending").length,
+    delivered:   orders.filter(o=>o.status==="delivered").length,
+    products:    products.length,
+    active:      products.filter(p=>p.is_active).length,
+    lowStock:    products.filter(p=>p.stock>0&&p.stock<=5).length,
+    outOfStock:  products.filter(p=>p.stock===0).length,
+    customers:   customers.length,
+    reviews:     reviews.length,
+    avgRating:   reviews.length>0 ? (reviews.reduce((s,r)=>s+r.rating,0)/reviews.length).toFixed(1) : "—",
+    activeCoupons: coupons.filter(c=>c.is_active).length,
+  }),[orders,products,customers,reviews,coupons]);
+
+  const filteredProducts = useMemo(()=>products.filter(p=>!searchP||(p.name+" "+p.cat+" "+(p.brand??"")).toLowerCase().includes(searchP.toLowerCase())),[products,searchP]);
+  const filteredOrders   = useMemo(()=>orderFilter==="all"?orders:orders.filter(o=>o.status===orderFilter),[orders,orderFilter]);
+
+  if (authLoading || !authorized) return (
+    <div style={{display:"flex",alignItems:"center",justifyContent:"center",height:"60vh",color:T.muted,fontSize:16}}>
+      {authLoading ? "লোড হচ্ছে…" : "অ্যাক্সেস নেই"}
+    </div>
+  );
+
+  /* ── INPUT helper ── */
+  const Inp = ({label,value,onChange,type="text",placeholder,full=false}:{label:string;value:string;onChange:(v:string)=>void;type?:string;placeholder?:string;full?:boolean}) => (
+    <div style={{display:"flex",flexDirection:"column",gap:5,gridColumn:full?"1/-1":"auto"}}>
+      <label style={{fontSize:11,fontWeight:700,color:T.muted,textTransform:"uppercase",letterSpacing:".05em"}}>{label}</label>
+      <input type={type} value={value} onChange={e=>onChange(e.target.value)} placeholder={placeholder}
+        style={{background:T.raised,border:`1px solid ${T.border}`,borderRadius:8,padding:"10px 12px",color:T.champagne,fontSize:13,fontFamily:"inherit",width:"100%"}}
+        onFocus={e=>(e.target.style.borderColor=T.coral)} onBlur={e=>(e.target.style.borderColor=T.border)} />
     </div>
   );
 
   return (
-    <div style={{ background: T.card, borderRadius: 24, border: `1px solid ${T.border}`, overflow: "hidden" }}>
-      <table style={{ width: "100%", borderCollapse: "collapse", textAlign: "left" }}>
-        <thead>
-          <tr style={{ borderBottom: `1px solid ${T.border}`, background: "rgba(255,255,255,0.02)" }}>
-            {["ORDER #", "CUSTOMER", "TOTAL", "STATUS", "DATE", "ACTION"].map(h => (
-              <th key={h} style={{ padding: 18, color: T.muted, fontSize: 12, letterSpacing: "0.06em" }}>{h}</th>
-            ))}
-          </tr>
-        </thead>
-        <tbody>
-          {orders.map(o => (
-            <tr key={o.id} style={{ borderBottom: `1px solid ${T.border}` }}>
-              <td style={{ padding: 18, fontFamily: "monospace", color: T.coral, fontWeight: 700, fontSize: 13 }}>{o.order_number}</td>
-              <td style={{ padding: 18, fontSize: 13 }}>{o.shipping_name || o.shipping_address?.slice(0, 30) || "—"}</td>
-              <td style={{ padding: 18, fontWeight: 800, color: T.text }}>৳{Number(o.total).toLocaleString()}</td>
-              <td style={{ padding: 18 }}>
-                <span style={{ background: (STATUS_COLOR[o.status ?? "pending"] ?? T.muted) + "22", color: STATUS_COLOR[o.status ?? "pending"] ?? T.muted, border: `1px solid ${(STATUS_COLOR[o.status ?? "pending"] ?? T.muted)}55`, borderRadius: 20, padding: "3px 12px", fontSize: 12, fontWeight: 700, textTransform: "capitalize" as const }}>
-                  {o.status ?? "pending"}
-                </span>
-              </td>
-              <td style={{ padding: 18, fontSize: 12, color: T.muted }}>
-                {o.created_at ? new Date(o.created_at).toLocaleDateString("en-BD") : "—"}
-              </td>
-              <td style={{ padding: 18 }}>
-                <select
-                  value={o.status ?? "pending"}
-                  onChange={e => updateStatus(o.id, e.target.value)}
-                  style={{ background: T.raised, border: `1px solid ${T.border}`, borderRadius: 7, padding: "6px 10px", color: T.text, fontSize: 12, cursor: "pointer", fontFamily: "inherit", outline: "none" }}
-                >
-                  {["pending", "processing", "shipped", "delivered", "cancelled"].map(s => (
-                    <option key={s} value={s}>{s}</option>
-                  ))}
-                </select>
-              </td>
-            </tr>
-          ))}
-        </tbody>
-      </table>
-    </div>
-  );
-}
+    <div style={{display:"flex",minHeight:"calc(100vh - 120px)",background:T.bg}}>
+      <style>{`.playfair{font-family:'Playfair Display',Georgia,serif}.fade-in{animation:fadeIn .3s ease}@keyframes fadeIn{from{opacity:0}to{opacity:1}}`}</style>
 
-/* ══════════════════════════════════════════════════
-   MAIN ADMIN PAGE
-══════════════════════════════════════════════════ */
-export default function AdminPage() {
-  const [products, setProducts]   = useState<Product[]>([]);
-  const [loading, setLoading]     = useState(true);
-  const [tab, setTab]             = useState<"inventory" | "orders">("inventory");
-  const [editTarget, setEditTarget] = useState<Product | null>(null);
-  const [showAdd, setShowAdd]     = useState(false);
-  const [search, setSearch]       = useState("");
-  const [toast, setToast]         = useState("");
-
-  const showToast = (msg: string) => {
-    setToast(msg);
-    setTimeout(() => setToast(""), 3000);
-  };
-
-  const fetchProducts = useCallback(async () => {
-    setLoading(true);
-    const { data } = await supabase.from("products").select("*").order("id", { ascending: false });
-    setProducts(data ?? []);
-    setLoading(false);
-  }, []);
-
-  useEffect(() => { fetchProducts(); }, [fetchProducts]);
-
-  const handleDelete = async (id: number) => {
-    if (!confirm("Delete this product? This cannot be undone.")) return;
-    const { error } = await supabase.from("products").delete().eq("id", id);
-    if (!error) { showToast("✅ Product deleted."); fetchProducts(); }
-    else showToast("❌ Delete failed: " + error.message);
-  };
-
-  const toggleActive = async (p: Product) => {
-    await supabase.from("products").update({ is_active: !p.is_active }).eq("id", p.id);
-    fetchProducts();
-  };
-
-  const filtered = products.filter(p =>
-    !search || p.name.toLowerCase().includes(search.toLowerCase()) || (p.cat ?? "").toLowerCase().includes(search.toLowerCase())
-  );
-
-  /* stats */
-  const totalProducts = products.length;
-  const activeCount   = products.filter(p => p.is_active).length;
-  const lowStock      = products.filter(p => (p.stock ?? 0) < 5).length;
-
-  return (
-    <div style={{ backgroundColor: T.bg, minHeight: "100vh", color: T.text, display: "flex", fontFamily: "'Inter',sans-serif" }}>
-      <style>{`@keyframes spin{to{transform:rotate(360deg)}}`}</style>
-
-      {/* ── TOAST ── */}
-      {toast && (
-        <div style={{ position: "fixed", bottom: 30, right: 30, background: T.card, border: `1px solid ${T.border}`, borderRadius: 12, padding: "14px 22px", fontSize: 14, fontWeight: 700, zIndex: 9999, boxShadow: "0 8px 32px rgba(0,0,0,0.5)" }}>
-          {toast}
-        </div>
-      )}
-
-      {/* ── SIDEBAR ── */}
-      <aside style={{ width: 240, borderRight: `1px solid ${T.border}`, padding: "30px 20px", display: "flex", flexDirection: "column", gap: 32, flexShrink: 0 }}>
-        <div>
-          <span style={{ color: T.coral, fontWeight: 900, fontSize: 22 }}>KVAD</span>
-          <span style={{ fontSize: 10, color: T.muted, marginLeft: 6, letterSpacing: "0.1em", textTransform: "uppercase" }}>Admin</span>
-        </div>
-
-        <nav style={{ display: "flex", flexDirection: "column", gap: 6 }}>
-          {([
-            { id: "inventory", icon: <LayoutDashboard size={17} />, label: "Inventory" },
-            { id: "orders",    icon: <ShoppingBag size={17} />,    label: "Orders" },
-          ] as const).map(item => (
-            <button key={item.id} onClick={() => setTab(item.id)}
-              style={{ display: "flex", alignItems: "center", gap: 11, padding: "11px 14px", background: tab === item.id ? T.raised : "transparent", border: `1px solid ${tab === item.id ? T.border : "transparent"}`, borderRadius: 10, cursor: "pointer", color: tab === item.id ? T.coral : T.muted, fontFamily: "inherit", fontSize: 14, fontWeight: tab === item.id ? 700 : 400, textAlign: "left" as const, width: "100%" }}>
-              {item.icon} {item.label}
-            </button>
-          ))}
-        </nav>
-
-        {/* stats */}
-        <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-          {[
-            { label: "Total Products", val: totalProducts, color: T.text },
-            { label: "Active",         val: activeCount,   color: T.ok },
-            { label: "Low Stock (<5)", val: lowStock,      color: lowStock > 0 ? T.gold : T.muted },
-          ].map(s => (
-            <div key={s.label} style={{ background: T.raised, border: `1px solid ${T.border}`, borderRadius: 10, padding: "10px 14px" }}>
-              <p style={{ fontSize: 10, color: T.muted, textTransform: "uppercase", letterSpacing: "0.06em" }}>{s.label}</p>
-              <p style={{ fontSize: 22, fontWeight: 900, color: s.color, marginTop: 2 }}>{s.val}</p>
-            </div>
-          ))}
-        </div>
+      {/* Sidebar */}
+      <aside style={{width:210,background:T.card,borderRight:`1px solid ${T.border}`,padding:"20px 10px",flexShrink:0,position:"sticky",top:0,height:"fit-content"}}>
+        <p style={{fontSize:11,color:T.muted,fontWeight:700,textTransform:"uppercase",letterSpacing:".08em",padding:"0 10px",marginBottom:14}}>Admin Panel</p>
+        {TABS.map(t=>(
+          <button key={t.id} onClick={()=>setTab(t.id)}
+            style={{width:"100%",padding:"11px 14px",borderRadius:9,border:"none",cursor:"pointer",fontFamily:"inherit",fontSize:13,fontWeight:tab===t.id?700:400,background:tab===t.id?"var(--coral-g)":"transparent",color:tab===t.id?T.coral:T.muted,display:"flex",alignItems:"center",gap:9,marginBottom:3,transition:"all .15s",textAlign:"left"}}>
+            <span>{t.icon}</span>{t.label}
+          </button>
+        ))}
+        <div style={{height:1,background:T.border,margin:"12px 0"}}/>
+        <a href="/shop" target="_blank"
+          style={{display:"flex",alignItems:"center",gap:9,padding:"10px 14px",fontSize:12,color:T.muted,transition:"color .15s"}}
+          onMouseEnter={e=>(e.currentTarget.style.color=T.coral)}
+          onMouseLeave={e=>(e.currentTarget.style.color=T.muted)}>
+          <Ic n="eye" s={14} c={T.muted}/> শপ দেখুন
+        </a>
       </aside>
 
-      {/* ── MAIN ── */}
-      <main style={{ flex: 1, padding: "40px 44px", overflowY: "auto" }}>
+      {/* Main content */}
+      <main style={{flex:1,padding:28,overflowX:"auto"}}>
 
-        {/* header */}
-        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 32, flexWrap: "wrap", gap: 16 }}>
-          <div>
-            <h1 style={{ fontSize: 28, fontWeight: 900 }}>
-              {tab === "inventory" ? "Inventory Management" : "Order Management"}
-            </h1>
-            <p style={{ color: T.muted, fontSize: 13, marginTop: 4 }}>
-              {tab === "inventory" ? "Add, edit, and manage all products." : "View and update order statuses."}
-            </p>
-          </div>
-          {tab === "inventory" && (
-            <div style={{ display: "flex", gap: 10, alignItems: "center" }}>
-              {/* search */}
-              <input
-                value={search} onChange={e => setSearch(e.target.value)}
-                placeholder="Search products…"
-                style={{ background: T.raised, border: `1px solid ${T.border}`, borderRadius: 9, padding: "9px 14px", color: T.text, fontSize: 13, fontFamily: "inherit", outline: "none", width: 200 }}
-              />
-              {/* refresh */}
-              <button onClick={fetchProducts}
-                style={{ background: T.raised, border: `1px solid ${T.border}`, borderRadius: 9, padding: "9px 12px", color: T.muted, cursor: "pointer" }}>
-                <RefreshCw size={16} />
-              </button>
-              {/* add */}
-              <button onClick={() => setShowAdd(true)}
-                style={{ background: T.coral, color: "#000", border: "none", padding: "10px 20px", borderRadius: 10, fontWeight: 800, display: "flex", alignItems: "center", gap: 8, cursor: "pointer", fontSize: 14 }}>
-                <Plus size={18} /> Add Product
-              </button>
+        {/* ════ DASHBOARD ════ */}
+        {tab==="dashboard" && (
+          <div className="fade-in">
+            <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:24}}>
+              <h2 className="playfair" style={{fontSize:24,fontWeight:700}}>ড্যাশবোর্ড</h2>
+              <Btn v="dark" sz="sm" onClick={loadAll}><Ic n="refresh" s={13}/> রিফ্রেশ</Btn>
             </div>
-          )}
-        </div>
-
-        {/* ── INVENTORY TABLE ── */}
-        {tab === "inventory" && (
-          loading ? (
-            <p style={{ color: T.muted }}>Loading…</p>
-          ) : filtered.length === 0 ? (
-            <div style={{ textAlign: "center", padding: "80px 0", color: T.muted }}>
-              <Package size={48} color={T.dim} />
-              <p style={{ marginTop: 16 }}>{search ? "No products match your search." : "No products yet. Add one!"}</p>
+            <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(190px,1fr))",gap:14,marginBottom:28}}>
+              <StatCard icon="💰" label="মোট রাজস্ব"    value={fmt(stats.revenue)}    color={T.ok}     sub={`${stats.delivered} ডেলিভার`}/>
+              <StatCard icon="🧾" label="মোট অর্ডার"    value={stats.orders}           color={T.coral}  sub={`${stats.pending} পেন্ডিং`}/>
+              <StatCard icon="📦" label="মোট পণ্য"      value={stats.products}         color={T.sky}    sub={`${stats.active} অ্যাক্টিভ`}/>
+              <StatCard icon="👥" label="কাস্টমার"       value={stats.customers}        color={T.purple} sub="নিবন্ধিত"/>
+              <StatCard icon="⭐" label="রিভিউ"          value={stats.reviews}          color={T.gold}   sub={`গড় ${stats.avgRating}★`}/>
+              <StatCard icon="⚠️" label="কম স্টক"       value={stats.lowStock}         color={T.danger} sub={`${stats.outOfStock} শেষ`}/>
             </div>
-          ) : (
-            <div style={{ background: T.card, borderRadius: 20, border: `1px solid ${T.border}`, overflow: "hidden" }}>
-              <table style={{ width: "100%", borderCollapse: "collapse", textAlign: "left" }}>
-                <thead>
-                  <tr style={{ borderBottom: `1px solid ${T.border}`, background: "rgba(255,255,255,0.02)" }}>
-                    {["PRODUCT", "CATEGORY", "PRICE", "STOCK", "STATUS", "ACTIONS"].map(h => (
-                      <th key={h} style={{ padding: "16px 20px", color: T.muted, fontSize: 11, letterSpacing: "0.07em" }}>{h}</th>
-                    ))}
-                  </tr>
-                </thead>
-                <tbody>
-                  {filtered.map(p => (
-                    <tr key={p.id} style={{ borderBottom: `1px solid ${T.border}`, opacity: p.is_active ? 1 : 0.5 }}>
 
-                      {/* product */}
-                      <td style={{ padding: "14px 20px" }}>
-                        <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
-                          {p.images?.[0]
-                            ? <img src={p.images[0]} style={{ width: 44, height: 44, borderRadius: 8, objectFit: "cover", flexShrink: 0, background: T.raised }} />
-                            : <div style={{ width: 44, height: 44, borderRadius: 8, background: T.raised, display: "flex", alignItems: "center", justifyContent: "center" }}><ImageIcon size={18} color={T.dim} /></div>
-                          }
-                          <div>
-                            <p style={{ fontWeight: 700, fontSize: 13 }}>{p.name}</p>
-                            <div style={{ display: "flex", alignItems: "center", gap: 4, marginTop: 2 }}>
-                              <Star size={11} color={T.gold} fill={T.gold} />
-                              <span style={{ fontSize: 11, color: T.muted }}>{Number(p.rating ?? 0).toFixed(1)} · {p.reviews ?? 0} reviews</span>
-                            </div>
-                            {p.badge && <span style={{ fontSize: 10, background: T.coral + "22", color: T.coral, border: `1px solid ${T.coral}44`, borderRadius: 4, padding: "1px 6px", marginTop: 3, display: "inline-block" }}>{p.badge}</span>}
-                          </div>
-                        </div>
-                      </td>
+            {/* Recent orders */}
+            <h3 className="playfair" style={{fontWeight:700,fontSize:18,marginBottom:14}}>সাম্প্রতিক অর্ডার</h3>
+            <div style={{background:T.card,border:`1px solid ${T.border}`,borderRadius:14,overflow:"hidden",marginBottom:24}}>
+              {loading ? <div style={{padding:20}}><Skeleton h={200}/></div> :
+              orders.slice(0,8).map((o,i)=>{
+                const st=STATUS_META[o.status??"pending"]??STATUS_META.pending;
+                return (
+                  <div key={o.id} style={{display:"grid",gridTemplateColumns:"140px 1fr 100px 120px 90px",gap:12,padding:"12px 18px",borderBottom:i<7?`1px solid ${T.border}`:"none",alignItems:"center"}}>
+                    <span className="playfair" style={{fontWeight:700,color:T.coral,fontSize:13}}>{o.order_number}</span>
+                    <span style={{fontSize:12,color:T.muted,overflow:"hidden",whiteSpace:"nowrap",textOverflow:"ellipsis"}}>{o.shipping_name??o.shipping_city??""}</span>
+                    <span style={{fontSize:11,color:T.muted,textTransform:"uppercase"}}>{o.payment_method??"—"}</span>
+                    <span style={{background:st.color+"22",color:st.color,borderRadius:20,padding:"3px 10px",fontSize:11,fontWeight:700,display:"inline-block"}}>{st.icon} {st.label}</span>
+                    <span className="playfair" style={{fontWeight:700,color:T.coral}}>{fmt(+o.total)}</span>
+                  </div>
+                );
+              })}
+            </div>
 
-                      {/* category */}
-                      <td style={{ padding: "14px 20px" }}>
-                        <p style={{ fontSize: 13, color: T.text }}>{p.cat ?? "—"}</p>
-                        {p.sub && <p style={{ fontSize: 11, color: T.muted }}>{p.sub}</p>}
-                      </td>
-
-                      {/* price */}
-                      <td style={{ padding: "14px 20px" }}>
-                        <p style={{ fontWeight: 800, color: T.coral, fontSize: 15 }}>৳{Number(p.price ?? 0).toLocaleString()}</p>
-                        {p.was && p.was > (p.price ?? 0) && (
-                          <p style={{ fontSize: 12, color: T.dim, textDecoration: "line-through" }}>৳{Number(p.was).toLocaleString()}</p>
-                        )}
-                      </td>
-
-                      {/* stock */}
-                      <td style={{ padding: "14px 20px" }}>
-                        <span style={{ fontSize: 13, fontWeight: 700, color: (p.stock ?? 0) === 0 ? T.danger : (p.stock ?? 0) < 5 ? T.gold : T.ok }}>
-                          {p.stock ?? 0}
-                        </span>
-                        <span style={{ fontSize: 11, color: T.muted }}> units</span>
-                      </td>
-
-                      {/* status toggle */}
-                      <td style={{ padding: "14px 20px" }}>
-                        <button onClick={() => toggleActive(p)}
-                          style={{ display: "flex", alignItems: "center", gap: 6, background: (p.is_active ? T.ok : T.muted) + "22", border: `1px solid ${p.is_active ? T.ok : T.muted}55`, borderRadius: 20, padding: "4px 12px", cursor: "pointer", color: p.is_active ? T.ok : T.muted, fontSize: 12, fontWeight: 700, fontFamily: "inherit" }}>
-                          {p.is_active ? <><ToggleRight size={14} /> Active</> : <><ToggleLeft size={14} /> Inactive</>}
-                        </button>
-                        {p.is_featured && <p style={{ fontSize: 10, color: T.gold, marginTop: 4, display: "flex", alignItems: "center", gap: 3 }}><TrendingUp size={10} /> Featured</p>}
-                      </td>
-
-                      {/* actions */}
-                      <td style={{ padding: "14px 20px" }}>
-                        <div style={{ display: "flex", gap: 8 }}>
-                          <button onClick={() => setEditTarget(p)}
-                            style={{ background: "none", border: `1px solid ${T.border}`, color: T.text, padding: "7px 11px", borderRadius: 8, cursor: "pointer" }}>
-                            <Edit size={15} />
-                          </button>
-                          <button onClick={() => handleDelete(p.id)}
-                            style={{ background: "none", border: `1px solid ${T.border}`, color: T.danger, padding: "7px 11px", borderRadius: 8, cursor: "pointer" }}>
-                            <Trash2 size={15} />
-                          </button>
-                        </div>
-                      </td>
-                    </tr>
+            {/* Low stock */}
+            {stats.lowStock>0 && (
+              <>
+                <h3 className="playfair" style={{fontWeight:700,fontSize:18,marginBottom:14,color:T.gold}}>⚠️ কম স্টক সতর্কতা</h3>
+                <div style={{display:"flex",flexDirection:"column",gap:8}}>
+                  {products.filter(p=>p.stock>=0&&p.stock<=5).map(p=>(
+                    <div key={p.id} style={{display:"flex",alignItems:"center",gap:12,padding:"10px 16px",background:T.card,border:`1px solid rgba(245,200,66,.2)`,borderRadius:10}}>
+                      <SafeImg src={p.img} alt={p.name} style={{width:40,height:40,objectFit:"cover",borderRadius:7,flexShrink:0}}/>
+                      <span style={{flex:1,fontWeight:700,fontSize:13}}>{p.name}</span>
+                      <span style={{color:p.stock===0?T.danger:T.gold,fontWeight:700,fontSize:13}}>{p.stock===0?"স্টক শেষ":`${p.stock} টি বাকি`}</span>
+                      <Btn sz="xs" v="outline" onClick={()=>{setTab("products");setEditPId(p.id);setPForm({name:p.name,cat:p.cat,sub:p.sub,brand:p.brand,price:String(p.price),was:String(p.was),badge:p.badge??"",stock:String(p.stock),images:(p.gallery??[]).join(", "),is_active:p.is_active,is_featured:p.is_featured,description:p.desc??""});}}>আপডেট</Btn>
+                    </div>
                   ))}
-                </tbody>
-              </table>
-            </div>
-          )
+                </div>
+              </>
+            )}
+          </div>
         )}
 
-        {/* ── ORDERS TAB ── */}
-        {tab === "orders" && <OrdersTab />}
-      </main>
+        {/* ════ PRODUCTS ════ */}
+        {tab==="products" && (
+          <div className="fade-in">
+            <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:20}}>
+              <h2 className="playfair" style={{fontSize:22,fontWeight:700}}>পণ্য ব্যবস্থাপনা ({products.length})</h2>
+            </div>
+            <div style={{display:"grid",gridTemplateColumns:"380px 1fr",gap:24,alignItems:"start"}}>
+              {/* Form */}
+              <div style={{background:T.card,border:`1px solid ${T.border}`,borderRadius:16,padding:22,position:"sticky",top:20}}>
+                <h3 className="playfair" style={{fontWeight:700,fontSize:17,marginBottom:18}}>{editPId?"পণ্য সম্পাদনা":"নতুন পণ্য যোগ"}</h3>
+                <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:12}}>
+                  <Inp label="পণ্যের নাম *" value={pForm.name} onChange={v=>setPForm(f=>({...f,name:v}))} placeholder="নাম" full />
+                  <div style={{display:"flex",flexDirection:"column",gap:5}}>
+                    <label style={{fontSize:11,fontWeight:700,color:T.muted,textTransform:"uppercase",letterSpacing:".05em"}}>ক্যাটাগরি</label>
+                    <select value={pForm.cat} onChange={e=>setPForm(f=>({...f,cat:e.target.value}))}
+                      style={{background:T.raised,border:`1px solid ${T.border}`,borderRadius:8,padding:"10px 12px",color:T.champagne,fontSize:13,fontFamily:"inherit"}}>
+                      {["Bags","Saree","Panjabi","Others"].map(c=><option key={c}>{c}</option>)}
+                    </select>
+                  </div>
+                  <Inp label="সাব-ক্যাট" value={pForm.sub} onChange={v=>setPForm(f=>({...f,sub:v}))} placeholder="উপ ক্যাটাগরি" />
+                  <Inp label="ব্র্যান্ড" value={pForm.brand} onChange={v=>setPForm(f=>({...f,brand:v}))} placeholder="ব্র্যান্ড" />
+                  <Inp label="দাম (৳) *" value={pForm.price} onChange={v=>setPForm(f=>({...f,price:v}))} type="number" placeholder="০" />
+                  <Inp label="আগের দাম (৳)" value={pForm.was} onChange={v=>setPForm(f=>({...f,was:v}))} type="number" placeholder="০" />
+                  <Inp label="স্টক" value={pForm.stock} onChange={v=>setPForm(f=>({...f,stock:v}))} type="number" placeholder="০" />
+                  <Inp label="ব্যাজ" value={pForm.badge} onChange={v=>setPForm(f=>({...f,badge:v}))} placeholder="HOT, NEW…" />
+                  <Inp label="ছবির URL (comma দিয়ে আলাদা করুন)" value={pForm.images} onChange={v=>setPForm(f=>({...f,images:v}))} placeholder="https://…" full />
+                  {/* Image preview */}
+                  {pForm.images.split(",")[0]?.trim() && (
+                    <div style={{gridColumn:"1/-1"}}>
+                      <img src={pForm.images.split(",")[0].trim()} alt="preview" onError={e=>(e.currentTarget.style.display="none")}
+                        style={{width:"100%",height:140,objectFit:"cover",borderRadius:8,border:`1px solid ${T.border}`}} />
+                    </div>
+                  )}
+                  <div style={{gridColumn:"1/-1",display:"flex",flexDirection:"column",gap:5}}>
+                    <label style={{fontSize:11,fontWeight:700,color:T.muted,textTransform:"uppercase",letterSpacing:".05em"}}>বিবরণ</label>
+                    <textarea value={pForm.description} onChange={e=>setPForm(f=>({...f,description:e.target.value}))} rows={3}
+                      style={{background:T.raised,border:`1px solid ${T.border}`,borderRadius:8,padding:"10px 12px",color:T.champagne,fontSize:13,fontFamily:"inherit",resize:"vertical"}} />
+                  </div>
+                  <div style={{gridColumn:"1/-1",display:"flex",gap:20}}>
+                    {[["is_active","সক্রিয়",T.ok],["is_featured","ফিচার্ড",T.gold]].map(([k,l,c])=>(
+                      <label key={k} style={{display:"flex",alignItems:"center",gap:7,cursor:"pointer",fontSize:13}}>
+                        <input type="checkbox" checked={(pForm as any)[k]} onChange={e=>setPForm(f=>({...f,[k]:e.target.checked}))}
+                          style={{accentColor:c,width:16,height:16}} /> {l}
+                      </label>
+                    ))}
+                  </div>
+                </div>
+                {pMsg && <p style={{fontSize:12,color:pMsg[0]==="✅"?T.ok:T.danger,marginTop:10}}>{pMsg}</p>}
+                <div style={{display:"flex",gap:8,marginTop:14}}>
+                  <Btn full onClick={saveProduct} loading={pSaving}><Ic n="check" s={14}/> {editPId?"আপডেট":"যোগ করুন"}</Btn>
+                  {editPId && <Btn v="ghost" onClick={()=>{setEditPId(null);setPForm(BLANK_P);setPMsg("");}}>বাতিল</Btn>}
+                </div>
+              </div>
 
-      {/* ── MODALS ── */}
-      {showAdd && (
-        <ProductModal onClose={() => setShowAdd(false)} onSaved={() => { showToast("✅ Product added!"); fetchProducts(); }} />
-      )}
-      {editTarget && (
-        <ProductModal initial={editTarget} onClose={() => setEditTarget(null)} onSaved={() => { showToast("✅ Product updated!"); fetchProducts(); }} />
-      )}
+              {/* Product list */}
+              <div>
+                <div style={{display:"flex",gap:10,marginBottom:14,alignItems:"center"}}>
+                  <input value={searchP} onChange={e=>setSearchP(e.target.value)} placeholder="পণ্য খুঁজুন…"
+                    style={{flex:1,background:T.raised,border:`1px solid ${T.border}`,borderRadius:9,padding:"10px 14px",color:T.champagne,fontSize:13,fontFamily:"inherit"}} />
+                  <span style={{fontSize:13,color:T.muted,whiteSpace:"nowrap"}}>{filteredProducts.length} টি</span>
+                </div>
+                <div style={{display:"flex",flexDirection:"column",gap:8}}>
+                  {filteredProducts.map(p=>(
+                    <div key={p.id} style={{display:"flex",gap:12,padding:"12px 14px",background:T.card,border:`1px solid ${T.border}`,borderRadius:12,alignItems:"center",transition:"border-color .2s"}}
+                      onMouseEnter={e=>(e.currentTarget.style.borderColor=T.borderLt)}
+                      onMouseLeave={e=>(e.currentTarget.style.borderColor=T.border)}>
+                      <SafeImg src={p.img} alt={p.name} style={{width:52,height:52,objectFit:"cover",borderRadius:8,flexShrink:0}} />
+                      <div style={{flex:1,minWidth:0}}>
+                        <p style={{fontWeight:700,fontSize:13,overflow:"hidden",whiteSpace:"nowrap",textOverflow:"ellipsis"}}>{p.name}</p>
+                        <p style={{fontSize:11,color:T.muted}}>{p.cat}{p.brand?` · ${p.brand}`:""}</p>
+                        <p style={{fontSize:11,color:T.coral,fontWeight:700,marginTop:2}}>{fmt(p.price)}</p>
+                      </div>
+                      <span style={{fontSize:12,color:p.stock===0?T.danger:p.stock<=5?T.gold:T.ok,fontWeight:700,minWidth:60,textAlign:"center"}}>{p.stock===0?"শেষ":`${p.stock} টি`}</span>
+                      <div style={{display:"flex",gap:5}}>
+                        <button onClick={()=>toggleProductActive(p)} title={p.is_active?"নিষ্ক্রিয়":"সক্রিয়"}
+                          style={{background:p.is_active?"rgba(61,235,160,.1)":"rgba(255,68,102,.1)",border:`1px solid ${p.is_active?T.ok:T.danger}`,borderRadius:7,padding:"6px 8px",cursor:"pointer"}}>
+                          <Ic n={p.is_active?"check":"x"} s={13} c={p.is_active?T.ok:T.danger} />
+                        </button>
+                        <button onClick={()=>{setEditPId(p.id);setPForm({name:p.name,cat:p.cat,sub:p.sub,brand:p.brand,price:String(p.price),was:String(p.was),badge:p.badge??"",stock:String(p.stock),images:(p.gallery??[]).join(", "),is_active:p.is_active,is_featured:p.is_featured,description:p.desc??""});window.scrollTo({top:0,behavior:"smooth"});}}
+                          style={{background:T.raised,border:`1px solid ${T.border}`,borderRadius:7,padding:"6px 8px",cursor:"pointer"}}>
+                          <Ic n="edit" s={13} c={T.sky} />
+                        </button>
+                        <button onClick={()=>deleteProduct(p.id)}
+                          style={{background:"none",border:`1px solid ${T.border}`,borderRadius:7,padding:"6px 8px",cursor:"pointer"}}>
+                          <Ic n="trash" s={13} c={T.danger} />
+                        </button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* ════ ORDERS ════ */}
+        {tab==="orders" && (
+          <div className="fade-in">
+            <h2 className="playfair" style={{fontSize:22,fontWeight:700,marginBottom:18}}>অর্ডার ব্যবস্থাপনা ({orders.length})</h2>
+            <div style={{display:"flex",gap:6,flexWrap:"wrap",marginBottom:16}}>
+              {["all","pending","processing","shipped","delivered","cancelled"].map(s=>{
+                const meta=STATUS_META[s];
+                return (
+                  <button key={s} onClick={()=>setOrderFilter(s)}
+                    style={{padding:"7px 14px",background:orderFilter===s?(meta?.color??T.coral):T.raised,border:`1px solid ${orderFilter===s?(meta?.color??T.coral):T.border}`,borderRadius:20,color:orderFilter===s?"#000":T.muted,cursor:"pointer",fontSize:12,fontWeight:700,fontFamily:"inherit",transition:"all .15s"}}>
+                    {meta?`${meta.icon} ${meta.label}`:"সব"} ({s==="all"?orders.length:orders.filter(o=>o.status===s).length})
+                  </button>
+                );
+              })}
+            </div>
+            <div style={{background:T.card,border:`1px solid ${T.border}`,borderRadius:14,overflow:"hidden"}}>
+              <div style={{display:"grid",gridTemplateColumns:"140px 1fr 100px 120px 90px 150px",gap:12,padding:"11px 16px",background:T.raised,borderBottom:`1px solid ${T.border}`}}>
+                {["অর্ডার","কাস্টমার","পেমেন্ট","স্ট্যাটাস","মোট","পরিবর্তন"].map(h=>(
+                  <span key={h} style={{fontSize:10,fontWeight:700,color:T.muted,textTransform:"uppercase",letterSpacing:".06em"}}>{h}</span>
+                ))}
+              </div>
+              {filteredOrders.slice(0,100).map((o,i)=>{
+                const st=STATUS_META[o.status??"pending"]??STATUS_META.pending;
+                return (
+                  <div key={o.id} style={{display:"grid",gridTemplateColumns:"140px 1fr 100px 120px 90px 150px",gap:12,padding:"12px 16px",borderBottom:i<filteredOrders.length-1?`1px solid ${T.border}`:"none",alignItems:"center",transition:"background .15s"}}
+                    onMouseEnter={e=>(e.currentTarget.style.background=T.raised+"88")}
+                    onMouseLeave={e=>(e.currentTarget.style.background="transparent")}>
+                    <span className="playfair" style={{fontWeight:700,color:T.coral,fontSize:13}}>{o.order_number}</span>
+                    <div>
+                      <p style={{fontSize:13,fontWeight:600}}>{o.shipping_name??"—"}</p>
+                      <p style={{fontSize:11,color:T.muted}}>{o.shipping_city??""}</p>
+                    </div>
+                    <span style={{fontSize:11,color:T.muted,textTransform:"uppercase"}}>{o.payment_method??"—"}</span>
+                    <span style={{background:st.color+"22",color:st.color,borderRadius:20,padding:"3px 10px",fontSize:11,fontWeight:700,display:"inline-block",whiteSpace:"nowrap"}}>{st.icon} {st.label}</span>
+                    <span className="playfair" style={{fontWeight:700,color:T.coral,fontSize:14}}>{fmt(+o.total)}</span>
+                    <select value={o.status??""} onChange={e=>updateOrderStatus(o.id,e.target.value)}
+                      style={{background:T.raised,border:`1px solid ${T.border}`,borderRadius:7,padding:"7px 9px",color:T.champagne,fontSize:12,fontFamily:"inherit",cursor:"pointer",width:"100%"}}>
+                      {["pending","processing","shipped","delivered","cancelled"].map(s=>(
+                        <option key={s} value={s}>{STATUS_META[s]?.label??s}</option>
+                      ))}
+                    </select>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        )}
+
+        {/* ════ CUSTOMERS ════ */}
+        {tab==="customers" && (
+          <div className="fade-in">
+            <h2 className="playfair" style={{fontSize:22,fontWeight:700,marginBottom:18}}>কাস্টমার ব্যবস্থাপনা ({customers.length})</h2>
+            <div style={{background:T.card,border:`1px solid ${T.border}`,borderRadius:14,overflow:"hidden"}}>
+              <div style={{display:"grid",gridTemplateColumns:"1fr 1fr 100px 80px 120px",gap:12,padding:"11px 16px",background:T.raised,borderBottom:`1px solid ${T.border}`}}>
+                {["নাম","ইমেইল","ফোন","অর্ডার","Role"].map(h=>(
+                  <span key={h} style={{fontSize:10,fontWeight:700,color:T.muted,textTransform:"uppercase",letterSpacing:".06em"}}>{h}</span>
+                ))}
+              </div>
+              {customers.map((c,i)=>(
+                <div key={c.id} style={{display:"grid",gridTemplateColumns:"1fr 1fr 100px 80px 120px",gap:12,padding:"12px 16px",borderBottom:i<customers.length-1?`1px solid ${T.border}`:"none",alignItems:"center"}}>
+                  <div style={{display:"flex",alignItems:"center",gap:9}}>
+                    <div style={{width:32,height:32,borderRadius:"50%",background:"rgba(255,107,74,.2)",display:"flex",alignItems:"center",justifyContent:"center",fontSize:13,fontWeight:700,color:T.coral,flexShrink:0}}>
+                      {c.full_name?.[0]?.toUpperCase()??c.email?.[0]?.toUpperCase()}
+                    </div>
+                    <span style={{fontWeight:700,fontSize:13,overflow:"hidden",whiteSpace:"nowrap",textOverflow:"ellipsis"}}>{c.full_name??"—"}</span>
+                  </div>
+                  <span style={{fontSize:12,color:T.muted,overflow:"hidden",whiteSpace:"nowrap",textOverflow:"ellipsis"}}>{c.email}</span>
+                  <span style={{fontSize:12,color:T.muted}}>{c.phone??"—"}</span>
+                  <span style={{fontSize:13,fontWeight:700,color:T.coral,textAlign:"center"}}>{orders.filter(o=>o.user_id===c.id).length}</span>
+                  <select value={c.role??"customer"} onChange={e=>updateCustomerRole(c.id,e.target.value)}
+                    style={{background:c.role==="admin"?"rgba(255,107,74,.1)":T.raised,border:`1px solid ${c.role==="admin"?T.coral:T.border}`,borderRadius:7,padding:"6px 9px",color:c.role==="admin"?T.coral:T.champagne,fontSize:12,fontFamily:"inherit",cursor:"pointer"}}>
+                    <option value="customer">Customer</option>
+                    <option value="admin">Admin</option>
+                  </select>
+                </div>
+              ))}
+              {customers.length===0 && (
+                <div style={{padding:"40px",textAlign:"center",color:T.muted}}>কোনো কাস্টমার নেই</div>
+              )}
+            </div>
+          </div>
+        )}
+
+        {/* ════ REVIEWS ════ */}
+        {tab==="reviews" && (
+          <div className="fade-in">
+            <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:18}}>
+              <h2 className="playfair" style={{fontSize:22,fontWeight:700}}>রিভিউ ব্যবস্থাপনা ({reviews.length})</h2>
+              <div style={{display:"flex",gap:10,fontSize:13,color:T.muted}}>
+                <span>গড় রেটিং: <strong style={{color:T.gold}}>{stats.avgRating}★</strong></span>
+              </div>
+            </div>
+            <div style={{display:"flex",flexDirection:"column",gap:10}}>
+              {reviews.map(r=>(
+                <div key={r.id} style={{background:T.card,border:`1px solid ${T.border}`,borderRadius:13,padding:"14px 18px",display:"flex",gap:14,alignItems:"flex-start"}}>
+                  <div style={{flex:1}}>
+                    <div style={{display:"flex",gap:10,alignItems:"center",marginBottom:6,flexWrap:"wrap"}}>
+                      <span style={{fontWeight:700,fontSize:14}}>{r.user_name}</span>
+                      <Stars r={r.rating} s={13}/>
+                      <span style={{fontSize:11,color:T.muted}}>{new Date(r.created_at).toLocaleDateString("bn-BD")}</span>
+                      <span style={{fontSize:11,color:T.sky}}>📦 {r.products?.name??`পণ্য #${r.product_id}`}</span>
+                      <span style={{fontSize:11,color:T.muted}}>👍 {r.helpful}</span>
+                    </div>
+                    <p style={{fontSize:13,color:T.cream,lineHeight:1.7}}>{r.comment}</p>
+                  </div>
+                  <button onClick={()=>deleteReview(r.id)}
+                    style={{background:"none",border:`1px solid ${T.border}`,borderRadius:7,padding:"6px 8px",cursor:"pointer",flexShrink:0}}>
+                    <Ic n="trash" s={14} c={T.danger}/>
+                  </button>
+                </div>
+              ))}
+              {reviews.length===0 && (
+                <div style={{padding:"60px",textAlign:"center",color:T.muted}}>কোনো রিভিউ নেই</div>
+              )}
+            </div>
+          </div>
+        )}
+
+        {/* ════ COUPONS ════ */}
+        {tab==="coupons" && (
+          <div className="fade-in">
+            <h2 className="playfair" style={{fontSize:22,fontWeight:700,marginBottom:18}}>কুপন ব্যবস্থাপনা</h2>
+            <div style={{display:"grid",gridTemplateColumns:"360px 1fr",gap:24,alignItems:"start"}}>
+              {/* Coupon form */}
+              <div style={{background:T.card,border:`1px solid ${T.border}`,borderRadius:16,padding:22,position:"sticky",top:20}}>
+                <h3 className="playfair" style={{fontWeight:700,fontSize:17,marginBottom:16}}>{editCId?"কুপন সম্পাদনা":"নতুন কুপন"}
+                </h3>
+                <div style={{display:"flex",flexDirection:"column",gap:12}}>
+                  <Inp label="কুপন কোড *" value={cForm.code} onChange={v=>setCForm(f=>({...f,code:v.toUpperCase()}))} placeholder="KVAD20" />
+                  <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10}}>
+                    <Inp label="ছাড়ের পরিমাণ *" value={cForm.discount} onChange={v=>setCForm(f=>({...f,discount:v}))} type="number" placeholder="20" />
+                    <div style={{display:"flex",flexDirection:"column",gap:5}}>
+                      <label style={{fontSize:11,fontWeight:700,color:T.muted,textTransform:"uppercase",letterSpacing:".05em"}}>ধরন</label>
+                      <select value={cForm.type} onChange={e=>setCForm(f=>({...f,type:e.target.value}))}
+                        style={{background:T.raised,border:`1px solid ${T.border}`,borderRadius:8,padding:"10px 12px",color:T.champagne,fontSize:13,fontFamily:"inherit"}}>
+                        <option value="percent">% শতাংশ</option>
+                        <option value="fixed">৳ নির্দিষ্ট</option>
+                      </select>
+                    </div>
+                  </div>
+                  <Inp label="সর্বনিম্ন অর্ডার (৳)" value={cForm.min_order} onChange={v=>setCForm(f=>({...f,min_order:v}))} type="number" placeholder="0" />
+                  <Inp label="সর্বোচ্চ ব্যবহার" value={cForm.max_uses} onChange={v=>setCForm(f=>({...f,max_uses:v}))} type="number" placeholder="সীমাহীন" />
+                  <Inp label="মেয়াদ শেষ" value={cForm.expires_at} onChange={v=>setCForm(f=>({...f,expires_at:v}))} type="date" />
+                  <label style={{display:"flex",alignItems:"center",gap:7,cursor:"pointer",fontSize:13}}>
+                    <input type="checkbox" checked={cForm.is_active} onChange={e=>setCForm(f=>({...f,is_active:e.target.checked}))}
+                      style={{accentColor:T.coral,width:16,height:16}} /> সক্রিয়
+                  </label>
+                </div>
+                <div style={{display:"flex",gap:8,marginTop:14}}>
+                  <Btn full onClick={saveCoupon} loading={cSaving}><Ic n="tag" s={14}/> {editCId?"আপডেট":"তৈরি করুন"}</Btn>
+                  {editCId && <Btn v="ghost" onClick={()=>{setEditCId(null);setCForm(BLANK_C);}}>বাতিল</Btn>}
+                </div>
+              </div>
+
+              {/* Coupon list */}
+              <div style={{display:"flex",flexDirection:"column",gap:10}}>
+                {coupons.length===0 && !loading && (
+                  <div style={{padding:"60px",textAlign:"center",color:T.muted,background:T.card,borderRadius:14,border:`1px solid ${T.border}`}}>কোনো কুপন নেই</div>
+                )}
+                {coupons.map(c=>(
+                  <div key={c.id} style={{background:T.card,border:`1px solid ${c.is_active?T.coral+"44":T.border}`,borderRadius:13,padding:"14px 18px",display:"flex",gap:14,alignItems:"center"}}>
+                    <div style={{flex:1}}>
+                      <div style={{display:"flex",alignItems:"center",gap:10,marginBottom:5,flexWrap:"wrap"}}>
+                        <span className="playfair" style={{fontWeight:800,fontSize:18,color:T.coral}}>{c.code}</span>
+                        <span style={{background:c.is_active?"rgba(61,235,160,.1)":"rgba(255,68,102,.1)",color:c.is_active?T.ok:T.danger,border:`1px solid ${c.is_active?T.ok:T.danger}`,borderRadius:20,padding:"2px 10px",fontSize:11,fontWeight:700}}>
+                          {c.is_active?"সক্রিয়":"নিষ্ক্রিয়"}
+                        </span>
+                        <span style={{fontSize:13,fontWeight:700,color:T.gold}}>
+                          {c.type==="percent"?`${c.discount}% ছাড়`:`৳${c.discount} ছাড়`}
+                        </span>
+                      </div>
+                      <div style={{display:"flex",gap:16,fontSize:11,color:T.muted,flexWrap:"wrap"}}>
+                        {c.min_order>0 && <span>সর্বনিম্ন: {fmt(c.min_order)}</span>}
+                        {c.max_uses && <span>সর্বোচ্চ: {c.max_uses}x</span>}
+                        <span>ব্যবহার: {c.used_count??0}x</span>
+                        {c.expires_at && <span>মেয়াদ: {new Date(c.expires_at).toLocaleDateString("bn-BD")}</span>}
+                      </div>
+                    </div>
+                    <div style={{display:"flex",gap:6}}>
+                      <button onClick={()=>toggleCoupon(c.id,!c.is_active)}
+                        style={{background:c.is_active?"rgba(255,68,102,.1)":"rgba(61,235,160,.1)",border:`1px solid ${c.is_active?T.danger:T.ok}`,borderRadius:7,padding:"6px 10px",cursor:"pointer",fontSize:11,fontWeight:700,fontFamily:"inherit",color:c.is_active?T.danger:T.ok}}>
+                        {c.is_active?"বন্ধ":"চালু"}
+                      </button>
+                      <button onClick={()=>{setEditCId(c.id);setCForm({code:c.code,discount:String(c.discount),type:c.type??"percent",min_order:String(c.min_order??0),max_uses:c.max_uses?String(c.max_uses):"",expires_at:c.expires_at?.slice(0,10)??"",is_active:c.is_active});}}
+                        style={{background:T.raised,border:`1px solid ${T.border}`,borderRadius:7,padding:"6px 8px",cursor:"pointer"}}>
+                        <Ic n="edit" s={13} c={T.sky}/>
+                      </button>
+                      <button onClick={()=>deleteCoupon(c.id)}
+                        style={{background:"none",border:`1px solid ${T.border}`,borderRadius:7,padding:"6px 8px",cursor:"pointer"}}>
+                        <Ic n="trash" s={13} c={T.danger}/>
+                      </button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* ════ ANALYTICS ════ */}
+        {tab==="analytics" && (
+          <div className="fade-in">
+            <h2 className="playfair" style={{fontSize:22,fontWeight:700,marginBottom:22}}>Analytics</h2>
+            <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(190px,1fr))",gap:14,marginBottom:28}}>
+              <StatCard icon="💰" label="মোট রাজস্ব"    value={fmt(stats.revenue)}    color={T.ok}/>
+              <StatCard icon="🧾" label="মোট অর্ডার"    value={stats.orders}           color={T.coral}/>
+              <StatCard icon="🎉" label="ডেলিভার"        value={stats.delivered}        color={T.teal}/>
+              <StatCard icon="📦" label="অ্যাক্টিভ পণ্য" value={stats.active}          color={T.sky}/>
+              <StatCard icon="⭐" label="মোট রিভিউ"      value={stats.reviews}          color={T.gold}  sub={`গড় ${stats.avgRating}★`}/>
+              <StatCard icon="🏷️" label="সক্রিয় কুপন"   value={stats.activeCoupons}    color={T.purple}/>
+            </div>
+
+            {/* Order status breakdown */}
+            <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:20,marginBottom:20}}>
+              <div style={{background:T.card,border:`1px solid ${T.border}`,borderRadius:16,padding:22}}>
+                <p className="playfair" style={{fontWeight:700,fontSize:16,marginBottom:16}}>অর্ডার স্ট্যাটাস</p>
+                {["pending","processing","shipped","delivered","cancelled"].map(s=>{
+                  const meta=STATUS_META[s];
+                  const count=orders.filter(o=>o.status===s).length;
+                  const pct=orders.length>0?Math.round(count/orders.length*100):0;
+                  return (
+                    <div key={s} style={{marginBottom:10}}>
+                      <div style={{display:"flex",justifyContent:"space-between",fontSize:12,marginBottom:4}}>
+                        <span>{meta.icon} {meta.label}</span>
+                        <span style={{fontWeight:700}}>{count} ({pct}%)</span>
+                      </div>
+                      <div style={{background:T.raised,borderRadius:4,height:8,overflow:"hidden"}}>
+                        <div style={{background:meta.color,height:"100%",width:`${pct}%`,borderRadius:4,transition:"width .5s"}}/>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+
+              <div style={{background:T.card,border:`1px solid ${T.border}`,borderRadius:16,padding:22}}>
+                <p className="playfair" style={{fontWeight:700,fontSize:16,marginBottom:16}}>ক্যাটাগরি বিশ্লেষণ</p>
+                {["Bags","Saree","Panjabi","Others"].map(cat=>{
+                  const count=products.filter(p=>p.cat===cat).length;
+                  const max=Math.max(...["Bags","Saree","Panjabi","Others"].map(c=>products.filter(p=>p.cat===c).length),1);
+                  return (
+                    <div key={cat} style={{marginBottom:10}}>
+                      <div style={{display:"flex",justifyContent:"space-between",fontSize:12,marginBottom:4}}>
+                        <span style={{fontWeight:700}}>{cat}</span>
+                        <span style={{color:T.muted}}>{count} পণ্য</span>
+                      </div>
+                      <div style={{background:T.raised,borderRadius:4,height:8,overflow:"hidden"}}>
+                        <div style={{background:T.coral,height:"100%",width:`${Math.round(count/max*100)}%`,borderRadius:4,transition:"width .5s"}}/>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+
+            {/* Top rated products */}
+            <div style={{background:T.card,border:`1px solid ${T.border}`,borderRadius:16,padding:22}}>
+              <p className="playfair" style={{fontWeight:700,fontSize:16,marginBottom:14}}>সেরা রেটেড পণ্য (Top 5)</p>
+              <div style={{display:"flex",flexDirection:"column",gap:8}}>
+                {[...products].sort((a,b)=>b.rating-a.rating).slice(0,5).map((p,i)=>(
+                  <div key={p.id} style={{display:"flex",alignItems:"center",gap:12,padding:"10px 14px",background:T.raised,borderRadius:10}}>
+                    <span style={{fontWeight:900,color:T.gold,fontSize:16,minWidth:24}}>#{i+1}</span>
+                    <SafeImg src={p.img} alt={p.name} style={{width:38,height:38,objectFit:"cover",borderRadius:7}}/>
+                    <span style={{flex:1,fontWeight:700,fontSize:13}}>{p.name}</span>
+                    <Stars r={p.rating} s={12}/>
+                    <span style={{fontSize:12,color:T.muted}}>({p.reviews})</span>
+                    <span style={{fontWeight:700,color:T.coral,fontSize:14}}>{fmt(p.price)}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* ════ SETTINGS ════ */}
+        {tab==="settings" && (
+          <div className="fade-in" style={{maxWidth:640}}>
+            <h2 className="playfair" style={{fontSize:22,fontWeight:700,marginBottom:22}}>সাইট সেটিংস</h2>
+
+            {/* General */}
+            <div style={{background:T.card,border:`1px solid ${T.border}`,borderRadius:16,padding:24,marginBottom:16}}>
+              <h3 className="playfair" style={{fontWeight:700,fontSize:17,marginBottom:16}}>🏪 সাধারণ সেটিংস</h3>
+              <div style={{display:"flex",flexDirection:"column",gap:14}}>
+                {[
+                  ["announcement_text","Announcement Bar টেক্সট","🔥 ফ্ল্যাশ সেল চলছে | বিকাশ নগদ রকেট COD"],
+                  ["free_ship_threshold","ফ্রি শিপিং সীমা (৳)","999"],
+                  ["base_ship_cost","বেস ডেলিভারি চার্জ (৳)","80"],
+                  ["express_ship_cost","এক্সপ্রেস ডেলিভারি (৳)","120"],
+                ].map(([key,label,placeholder])=>(
+                  <div key={key} style={{display:"flex",flexDirection:"column",gap:5}}>
+                    <label style={{fontSize:12,fontWeight:700,color:T.muted,textTransform:"uppercase",letterSpacing:".05em"}}>{label}</label>
+                    <input value={settings[key]??""} onChange={e=>setSettings(prev=>({...prev,[key]:e.target.value}))}
+                      placeholder={placeholder}
+                      style={{background:T.raised,border:`1px solid ${T.border}`,borderRadius:9,padding:"11px 14px",color:T.champagne,fontSize:14,fontFamily:"inherit"}}
+                      onFocus={e=>(e.target.style.borderColor=T.coral)}
+                      onBlur={e=>(e.target.style.borderColor=T.border)} />
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            {/* Maintenance */}
+            <div style={{background:T.card,border:`1px solid ${T.border}`,borderRadius:16,padding:24,marginBottom:16}}>
+              <h3 className="playfair" style={{fontWeight:700,fontSize:17,marginBottom:16}}>🔧 Maintenance Mode</h3>
+              <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",padding:"14px 16px",background:T.raised,borderRadius:12}}>
+                <div>
+                  <p style={{fontWeight:700,fontSize:14}}>সাইট রক্ষণাবেক্ষণ মোড</p>
+                  <p style={{fontSize:12,color:T.muted,marginTop:3}}>চালু করলে শুধু admin দেখতে পাবেন</p>
+                </div>
+                <button onClick={()=>setSettings(prev=>({...prev,maintenance:prev.maintenance==="true"?"false":"true"}))}
+                  style={{width:52,height:28,borderRadius:14,cursor:"pointer",border:"none",position:"relative",transition:"all .25s",background:settings.maintenance==="true"?T.danger:T.dim}}>
+                  <div style={{position:"absolute",top:3,left:settings.maintenance==="true"?26:3,width:22,height:22,borderRadius:"50%",background:"#fff",transition:"all .25s"}}/>
+                </button>
+              </div>
+            </div>
+
+            {/* Multi-store */}
+            <div style={{background:T.card,border:`1px solid ${T.border}`,borderRadius:16,padding:24,marginBottom:16}}>
+              <h3 className="playfair" style={{fontWeight:700,fontSize:17,marginBottom:16}}>🏬 মাল্টি-স্টোর</h3>
+              <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",padding:"14px 16px",background:T.raised,borderRadius:12,marginBottom:14}}>
+                <div>
+                  <p style={{fontWeight:700,fontSize:14}}>মাল্টি-স্টোর মোড</p>
+                  <p style={{fontSize:12,color:T.muted,marginTop:3}}>অন্য বিক্রেতারা স্টোর খুলতে পারবেন</p>
+                </div>
+                <button onClick={()=>setSettings(prev=>({...prev,multi_store_enabled:prev.multi_store_enabled==="true"?"false":"true"}))}
+                  style={{width:52,height:28,borderRadius:14,cursor:"pointer",border:"none",position:"relative",transition:"all .25s",background:settings.multi_store_enabled==="true"?T.ok:T.dim}}>
+                  <div style={{position:"absolute",top:3,left:settings.multi_store_enabled==="true"?26:3,width:22,height:22,borderRadius:"50%",background:"#fff",transition:"all .25s"}}/>
+                </button>
+              </div>
+              {settings.multi_store_enabled==="true" && (
+                <div style={{display:"flex",flexDirection:"column",gap:5}}>
+                  <label style={{fontSize:12,fontWeight:700,color:T.muted,textTransform:"uppercase",letterSpacing:".05em"}}>সর্বোচ্চ বিক্রেতা সংখ্যা</label>
+                  <input type="number" value={settings.max_sellers??""} onChange={e=>setSettings(prev=>({...prev,max_sellers:e.target.value}))}
+                    style={{background:T.raised,border:`1px solid ${T.border}`,borderRadius:9,padding:"11px 14px",color:T.champagne,fontSize:14,fontFamily:"inherit",width:180}} />
+                </div>
+              )}
+            </div>
+
+            <Btn v="coral" full sz="lg" onClick={saveAllSettings}>
+              {settSaved ? <><Ic n="check" s={16}/> সংরক্ষিত!</> : <><Ic n="check" s={16}/> সব সেটিংস সংরক্ষণ করুন</>}
+            </Btn>
+          </div>
+        )}
+
+      </main>
     </div>
   );
 }
