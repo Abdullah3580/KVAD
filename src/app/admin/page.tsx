@@ -72,10 +72,11 @@ export default function AdminPage() {
   useEffect(() => {
     if (authLoading) return;
     if (!user) { router.push("/shop"); return; }
-    supabase.from("users").select("role").eq("id", user.id).single().then(({data}) => {
-      if (data?.role !== "admin") { router.push("/shop"); return; }
-      setAuthorized(true);
-    });
+    supabase.from("users").select("role").eq("id", user.id).single().then(({data, error}) => {
+  console.log("ROLE CHECK:", data, error);
+  if (data?.role !== "admin") { router.push("/shop"); return; }
+  setAuthorized(true);
+});
   }, [user, authLoading]);
 
   /* ── Load all data ── */
