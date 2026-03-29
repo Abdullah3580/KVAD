@@ -12,10 +12,10 @@ export async function middleware(request: NextRequest) {
     {
       cookies: {
         getAll() { return request.cookies.getAll(); },
-        setAll(cookiesToSet) {
+        setAll(cookiesToSet: { name: string; value: string; options?: Record<string, unknown> }[]) {
           cookiesToSet.forEach(({ name, value, options }) => {
             request.cookies.set(name, value);
-            response.cookies.set(name, value, options);
+            response.cookies.set(name, value, options as Parameters<typeof response.cookies.set>[2]);
           });
         },
       },
@@ -25,19 +25,12 @@ export async function middleware(request: NextRequest) {
   const { data: { session } } = await supabase.auth.getSession();
   const { pathname } = request.nextUrl;
 
-  // /admin route: require auth, role check done client-side after
-  if (pathname.startsWith("/admin")) {
-    if (!session) {
-      return NextResponse.redirect(new URL("/", request.url));
-    }
+  if (pathname.startsWith("/admin") && !session) {
+    return NextResponse.redirect(new URL("/", request.url));
   }
-
-  // /checkout: require auth
   if (pathname.startsWith("/checkout") && !session) {
     return NextResponse.redirect(new URL("/", request.url));
   }
-
-  // /orders, /account: require auth
   if ((pathname.startsWith("/orders") || pathname.startsWith("/account")) && !session) {
     return NextResponse.redirect(new URL("/", request.url));
   }
