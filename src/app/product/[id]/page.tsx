@@ -185,7 +185,7 @@ export default function ProductPage() {
           {/* Quantity */}
           <div style={{ display: "flex", alignItems: "center", gap: 14, marginBottom: 20 }}>
             <p style={{ fontSize: 12, color: T.muted, textTransform: "uppercase", letterSpacing: ".06em" }}>পরিমাণ</p>
-            <QtyStepper qty={qty} setQty={setQty} max={p.stock} />
+            <QtyStepper qty={qty} onDec={() => setQty(q => Math.max(1, q - 1))} onInc={() => setQty(q => Math.min(p.stock, q + 1))} max={p.stock} />
           </div>
 
           {/* Actions */}
