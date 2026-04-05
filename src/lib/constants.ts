@@ -1,5 +1,5 @@
 export const T = {
-  bg:        "#080810",
+  bg:        "#e7e8d7",
   card:      "#0E0E18",
   raised:    "#141422",
   border:    "#1E1E30",

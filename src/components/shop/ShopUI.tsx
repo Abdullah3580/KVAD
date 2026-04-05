@@ -30,12 +30,12 @@ export function FlashSale({ products }: { products: Product[] }) {
   return (
     <section style={{
       background: `linear-gradient(135deg,#180000,${T.card})`,
-      border: `1px solid rgba(255,68,102,.13)`, borderRadius: 20, padding: "22px 24px",
+      border: `1px solid rgb(255, 255, 255)`, borderRadius: 20, padding: "22px 24px",
     }}>
       <div style={{ display: "flex", alignItems: "center", gap: 16, marginBottom: 20, flexWrap: "wrap" }}>
         <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
           <Ic n="zap" s={26} c={T.danger} solid />
-          <span className="playfair" style={{ fontSize: 26, fontWeight: 900, color: T.danger }}>ফ্ল্যাশ সেল</span>
+          <span className="playfair" style={{ fontSize: 26,fontWeight: 900,color: T.danger}}>ফ্ল্যাশ সেল</span>
         </div>
         {/* Timer */}
         <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
