@@ -43,7 +43,8 @@ export default function OrdersPage() {
 
   if (authLoading) return (
     <div style={{ maxWidth: 1200, margin: "0 auto", padding: "60px 20px" }}>
-      <Skeleton h={200} r={16} />
+      {/* <Skeleton h={200} r={16} /> */}
+    <div className="h-[200px] rounded-2xl bg-muted animate-pulse" />
     </div>
   );
 

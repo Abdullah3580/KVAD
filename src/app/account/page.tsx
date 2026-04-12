@@ -52,7 +52,8 @@ export default function AccountPage() {
 
   if (authLoading) return (
     <div style={{ maxWidth: 900, margin: "60px auto", padding: "0 20px" }}>
-      <Skeleton h={200} r={16} />
+      {/* <Skeleton h={200} r={16} /> */}
+      <div className="h-[200px] rounded-2xl bg-muted animate-pulse" />
     </div>
   );
 
