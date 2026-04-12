@@ -275,7 +275,7 @@ export default function CheckoutPage() {
               <div style={{ display:"flex", flexDirection:"column", gap:9, marginBottom:20 }}>
                 {cart.map(item=>(
                   <div key={item.cartKey} style={{ display:"flex", gap:12, padding:"10px 14px", background:T.raised, borderRadius:10 }}>
-                    <SafeImg src={item.img} alt={item.name} style={{ width:54, height:54, objectFit:"cover", borderRadius:7, flexShrink:0 }}/>
+                    <SafeImg src={item.img} alt={item.name} className="w-[54px] h-[54px] object-cover rounded-lg flex-shrink-0"/>
                     <div style={{ flex:1, minWidth:0 }}>
                       <p style={{ fontSize:13, fontWeight:700, overflow:"hidden", display:"-webkit-box", WebkitLineClamp:2, WebkitBoxOrient:"vertical" as React.CSSProperties["WebkitBoxOrient"] }}>{item.name}</p>
                       <p style={{ fontSize:12, color:T.muted }}>{item.qty} × {fmt(item.price)}</p>
