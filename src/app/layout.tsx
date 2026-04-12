@@ -43,7 +43,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
       <body>
         <AuthProvider>
           <CartProvider>
-            <ThemeProvider>
+            {/* <ThemeProvider> */}
               <ToastProvider>
                 <AnnouncementBar />
                 <Navbar />
@@ -53,7 +53,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
                 <WishlistDrawer />
                 <ScrollToTop />
               </ToastProvider>
-            </ThemeProvider>
+            {/* </ThemeProvider> */}
           </CartProvider>
         </AuthProvider>
       </body>

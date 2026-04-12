@@ -1,49 +1,50 @@
+/* src/components/ui/index.tsx */
 "use client";
-import { useState, CSSProperties, ReactNode } from "react";
-import { T } from "@/lib/constants";
+import { useState, ReactNode } from "react";
 
 /* ── Button ── */
 type BtnVariant = "coral" | "ghost" | "outline" | "danger" | "ok" | "dark" | "gold";
 type BtnSize    = "xs" | "sm" | "md" | "lg" | "xl";
 
-const BTN_MAP: Record<BtnVariant, (hov: boolean) => [string, string, string]> = {
-  coral:   h => [h ? T.coralD : T.coral,   "#000", "none"],
-  ghost:   h => [h ? T.raised : "transparent", T.muted, `1px solid ${T.border}`],
-  outline: h => [h ? T.coralG : "transparent", T.coral, `1px solid ${T.coral}`],
-  danger:  h => [h ? "#cc1133" : T.danger, "#fff", "none"],
-  ok:      h => [h ? "#2dc98a" : T.ok,     "#000", "none"],
-  dark:    h => [h ? T.raised : T.card, T.champagne, `1px solid ${T.border}`],
-  gold:    h => [h ? "#d4a820" : T.gold,   "#000", "none"],
+const BTN_VARIANTS: Record<BtnVariant, string> = {
+  coral:   "bg-primary text-primary-foreground border-transparent hover:brightness-90",
+  ghost:   "bg-transparent text-muted-foreground border-border hover:bg-muted",
+  outline: "bg-transparent text-primary border-primary hover:bg-primary/10",
+  danger:  "bg-destructive text-white border-transparent hover:brightness-90",
+  ok:      "bg-emerald-500 text-white border-transparent hover:brightness-90",
+  dark:    "bg-card text-foreground border-border hover:bg-muted",
+  gold:    "bg-amber-500 text-black border-transparent hover:brightness-90",
 };
-const BTN_PAD:Record<BtnSize,string> = { xs:"4px 10px", sm:"7px 16px", md:"10px 22px", lg:"13px 30px", xl:"16px 38px" };
-const BTN_FS:Record<BtnSize,number>  = { xs:11, sm:12, md:14, lg:15, xl:16 };
+
+const BTN_SIZES: Record<BtnSize, string> = {
+  xs: "px-2.5 py-1 text-[11px]",
+  sm: "px-4 py-1.5 text-xs",
+  md: "px-6 py-2.5 text-sm",
+  lg: "px-8 py-3.5 text-base",
+  xl: "px-10 py-4 text-lg",
+};
 
 export function Btn({
   children, onClick, v = "coral", sz = "md",
-  disabled = false, full = false, style: st = {}, href, loading = false,
+  disabled = false, full = false, className = "", href, loading = false,
 }: {
   children: ReactNode; onClick?: () => void; v?: BtnVariant; sz?: BtnSize;
-  disabled?: boolean; full?: boolean; style?: CSSProperties; href?: string;
+  disabled?: boolean; full?: boolean; className?: string; href?: string;
   loading?: boolean;
 }) {
-  const [hov, setH] = useState(false);
-  const [bg, color, border] = BTN_MAP[v](hov && !disabled && !loading);
-  const style: CSSProperties = {
-    display: "inline-flex", alignItems: "center", justifyContent: "center",
-    gap: 7, fontWeight: 700, fontSize: BTN_FS[sz], padding: BTN_PAD[sz],
-    borderRadius: 10, cursor: disabled || loading ? "not-allowed" : "pointer",
-    opacity: disabled || loading ? .5 : 1,
-    width: full ? "100%" : "auto", transition: "all .18s",
-    letterSpacing: ".02em", background: bg, color, border,
-    fontFamily: "inherit", ...st,
-  };
-  if (href) return <a href={href} style={style}>{children}</a>;
+  const baseClass = `inline-flex items-center justify-center gap-2 font-bold rounded-xl transition-all duration-200 border active:scale-[0.98] ${
+    disabled || loading ? "opacity-50 cursor-not-allowed" : "cursor-pointer"
+  } ${full ? "w-full" : "w-auto"} ${BTN_VARIANTS[v]} ${BTN_SIZES[sz]} ${className}`;
+
+  if (href) return <a href={href} className={baseClass}>{children}</a>;
+
   return (
-    <button onClick={disabled || loading ? undefined : onClick}
+    <button 
+      onClick={disabled || loading ? undefined : onClick}
       disabled={disabled || loading}
-      onMouseEnter={() => setH(true)} onMouseLeave={() => setH(false)}
-      style={style}>
-      {loading ? <span className="spin" style={{width:14,height:14,borderRadius:"50%",border:`2px solid currentColor`,borderTopColor:"transparent",display:"inline-block"}}/>: null}
+      className={baseClass}
+    >
+      {loading && <span className="h-4 w-4 animate-spin rounded-full border-2 border-current border-t-transparent" />}
       {children}
     </button>
   );
@@ -51,84 +52,76 @@ export function Btn({
 
 /* ── Badge / Pill ── */
 type BadgeType = "coral" | "danger" | "sky" | "gold" | "ok" | "purple" | "teal" | "muted";
-const BADGE_CLR: Record<BadgeType, string> = {
-  coral: T.coral, danger: T.danger, sky: T.sky, gold: T.gold,
-  ok: T.ok, purple: T.purple, teal: T.teal, muted: T.muted,
+const BADGE_VARIANTS: Record<BadgeType, string> = {
+  coral: "bg-primary text-primary-foreground",
+  danger: "bg-destructive text-white",
+  sky: "bg-sky-500 text-white",
+  gold: "bg-amber-500 text-black",
+  ok: "bg-emerald-500 text-white",
+  purple: "bg-purple-500 text-white",
+  teal: "bg-teal-500 text-white",
+  muted: "bg-muted text-muted-foreground",
 };
 
-export function Badge({ text, type = "coral", tiny = false, style: st }: {
-  text: string; type?: BadgeType; tiny?: boolean; style?: CSSProperties;
+export function Badge({ text, type = "coral", tiny = false, className = "" }: {
+  text: string; type?: BadgeType; tiny?: boolean; className?: string;
 }) {
-  const bg = BADGE_CLR[type] ?? T.coral;
   return (
-    <span style={{
-      background: bg, color: "#000",
-      fontSize: tiny ? 8 : 9, fontWeight: 900,
-      padding: tiny ? "1px 5px" : "2px 8px",
-      borderRadius: 3, letterSpacing: ".08em",
-      textTransform: "uppercase", flexShrink: 0, lineHeight: "1.6",
-      ...st,
-    }}>{text}</span>
+    <span className={`inline-flex shrink-0 items-center justify-center rounded px-2 py-0.5 font-black uppercase tracking-widest leading-none ${
+      tiny ? "text-[8px]" : "text-[10px]"
+    } ${BADGE_VARIANTS[type]} ${className}`}>
+      {text}
+    </span>
   );
 }
 
-export function OutlineBadge({ text, type = "coral", style: st }: {
-  text: string; type?: BadgeType; style?: CSSProperties;
+export function OutlineBadge({ text, type = "coral", className = "" }: {
+  text: string; type?: BadgeType; className?: string;
 }) {
-  const c = BADGE_CLR[type] ?? T.coral;
   return (
-    <span style={{
-      background: c + "15", color: c,
-      border: `1px solid ${c}44`, borderRadius: 20,
-      padding: "3px 12px", fontSize: 12, fontWeight: 700,
-      textTransform: "capitalize", ...st,
-    }}>{text}</span>
+    <span className={`inline-flex items-center justify-center rounded-full border border-current/20 bg-current/10 px-3 py-1 text-xs font-bold capitalize ${
+      type === 'coral' ? 'text-primary' : 'text-muted-foreground'
+    } ${className}`}>
+      {text}
+    </span>
   );
 }
 
 /* ── Skeleton ── */
-export function Skeleton({ w = "100%", h = 16, r = 6, style: st }: {
-  w?: string | number; h?: string | number; r?: number; style?: CSSProperties;
-}) {
-  return (
-    <div className="shimmer" style={{ width: w, height: h, borderRadius: r, ...st }} />
-  );
+export function Skeleton({ className = "" }: { className?: string }) {
+  return <div className={`animate-pulse rounded-md bg-muted ${className}`} />;
 }
 
 export function ProductSkeleton() {
   return (
-    <div style={{ background: T.card, border: `1px solid ${T.border}`, borderRadius: 14, overflow: "hidden" }}>
-      <div style={{ paddingTop: "82%", position: "relative" }}>
-        <div className="shimmer" style={{ position: "absolute", inset: 0 }} />
-      </div>
-      <div style={{ padding: "14px 16px 18px", display: "flex", flexDirection: "column", gap: 8 }}>
-        <Skeleton h={12} w="40%" />
-        <Skeleton h={15} />
-        <Skeleton h={13} w="70%" />
-        <Skeleton h={10} w="55%" />
-        <Skeleton h={20} w="45%" />
+    <div className="luxury-card overflow-hidden">
+      <div className="aspect-[4/5] w-full animate-pulse bg-muted" />
+      <div className="flex flex-col gap-3 p-4">
+        <Skeleton className="h-3 w-1/3" />
+        <Skeleton className="h-4 w-full" />
+        <Skeleton className="h-3 w-2/3" />
+        <Skeleton className="h-5 w-1/2 mt-2" />
       </div>
     </div>
   );
 }
 
 /* ── Safe image with fallback ── */
-export function SafeImg({ src, alt = "", style: st, fallback = "📦" }: {
-  src?: string; alt?: string; style?: CSSProperties; fallback?: string;
+export function SafeImg({ src, alt = "", className = "", fallback = "📦" }: {
+  src?: string; alt?: string; className?: string; fallback?: string;
 }) {
   const [err, setErr] = useState(false);
   if (!src || err) return (
-    <div style={{
-      ...st, display: "flex", alignItems: "center", justifyContent: "center",
-      background: T.raised, color: T.dim, fontSize: 32, flexShrink: 0,
-    }}>{fallback}</div>
+    <div className={`flex items-center justify-center bg-muted text-muted-foreground text-3xl ${className}`}>
+      {fallback}
+    </div>
   );
-  return <img src={src} alt={alt} style={st} onError={() => setErr(true)} />;
+  return <img src={src} alt={alt} className={className} onError={() => setErr(true)} />;
 }
 
 /* ── Divider ── */
-export function Divider({ style: st }: { style?: CSSProperties }) {
-  return <div style={{ height: 1, background: T.border, ...st }} />;
+export function Divider({ className = "" }: { className?: string }) {
+  return <div className={`h-px w-full bg-border ${className}`} />;
 }
 
 /* ── Section Header ── */
@@ -136,14 +129,13 @@ export function SectionHead({ title, sub, action, actionHref }: {
   title: string; sub?: string; action?: string; actionHref?: string;
 }) {
   return (
-    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-end", marginBottom: 20 }}>
+    <div className="mb-6 flex items-end justify-between">
       <div>
-        <h2 className="playfair" style={{ fontSize: "clamp(18px,3vw,26px)", fontWeight: 700 }}>{title}</h2>
-        {sub && <p style={{ fontSize: 13, color: T.muted, marginTop: 4 }}>{sub}</p>}
+        <h2 className="playfair text-2xl font-bold md:text-3xl">{title}</h2>
+        {sub && <p className="mt-1 text-sm text-muted-foreground">{sub}</p>}
       </div>
       {action && (
-        <a href={actionHref ?? "#"}
-          style={{ fontSize: 13, color: T.coral, fontWeight: 700, display: "flex", alignItems: "center", gap: 5 }}>
+        <a href={actionHref ?? "#"} className="flex items-center gap-1 text-sm font-bold text-primary hover:underline">
           {action} →
         </a>
       )}
@@ -156,11 +148,11 @@ export function EmptyState({ icon, title, sub, action, onAction }: {
   icon: string; title: string; sub?: string; action?: string; onAction?: () => void;
 }) {
   return (
-    <div style={{ textAlign: "center", padding: "80px 20px", color: T.muted }}>
-      <div style={{ fontSize: 72, marginBottom: 18 }}>{icon}</div>
-      <h3 className="playfair" style={{ fontSize: 22, fontWeight: 700, color: T.champagne, marginBottom: 8 }}>{title}</h3>
-      {sub && <p style={{ fontSize: 14, marginBottom: 24, lineHeight: 1.7 }}>{sub}</p>}
-      {action && <Btn onClick={onAction} v="outline">{action}</Btn>}
+    <div className="flex flex-col items-center justify-center py-20 text-center">
+      <div className="mb-4 text-7xl">{icon}</div>
+      <h3 className="playfair mb-2 text-2xl font-bold text-foreground">{title}</h3>
+      {sub && <p className="mb-6 max-w-xs text-sm text-muted-foreground leading-relaxed">{sub}</p>}
+      {action && <Btn onClick={onAction} v="outline" sz="sm">{action}</Btn>}
     </div>
   );
 }
@@ -170,15 +162,23 @@ export function QtyStepper({ qty, onDec, onInc, max, min = 1 }: {
   qty: number; onDec: () => void; onInc: () => void; max?: number; min?: number;
 }) {
   return (
-    <div style={{ display: "flex", border: `1px solid ${T.border}`, borderRadius: 9, overflow: "hidden" }}>
-      <button onClick={onDec} disabled={qty <= min}
-        style={{ background: T.raised, border: "none", padding: "10px 16px", cursor: qty <= min ? "not-allowed" : "pointer", opacity: qty <= min ? .4 : 1 }}>
-        <span style={{ fontSize: 18, color: T.champagne }}>−</span>
+    <div className="inline-flex overflow-hidden rounded-xl border border-border bg-muted">
+      <button 
+        onClick={onDec} 
+        disabled={qty <= min}
+        className="px-4 py-2 text-xl font-bold transition-hover hover:bg-background disabled:opacity-30"
+      >
+        −
       </button>
-      <span style={{ padding: "10px 22px", fontWeight: 800, fontSize: 16, background: T.card, minWidth: 60, textAlign: "center" }}>{qty}</span>
-      <button onClick={onInc} disabled={max !== undefined && qty >= max}
-        style={{ background: T.raised, border: "none", padding: "10px 16px", cursor: max !== undefined && qty >= max ? "not-allowed" : "pointer", opacity: max !== undefined && qty >= max ? .4 : 1 }}>
-        <span style={{ fontSize: 18, color: T.champagne }}>+</span>
+      <span className="flex min-w-[60px] items-center justify-center bg-card px-4 font-black text-foreground">
+        {qty}
+      </span>
+      <button 
+        onClick={onInc} 
+        disabled={max !== undefined && qty >= max}
+        className="px-4 py-2 text-xl font-bold transition-hover hover:bg-background disabled:opacity-30"
+      >
+        +
       </button>
     </div>
   );
@@ -187,22 +187,9 @@ export function QtyStepper({ qty, onDec, onInc, max, min = 1 }: {
 /* ── Chip (filter tag) ── */
 export function Chip({ label, onDel }: { label: string; onDel: () => void }) {
   return (
-    <span style={{
-      background: T.coralG, border: `1px solid var(--coral-g)`,
-      borderRadius: 20, padding: "4px 12px", fontSize: 12, color: T.coral,
-      display: "inline-flex", alignItems: "center", gap: 5,
-    }}>
+    <span className="inline-flex items-center gap-2 rounded-full border border-primary/20 bg-primary/10 px-3 py-1 text-xs font-bold text-primary">
       {label}
-      <button onClick={onDel} style={{ background: "none", border: "none", color: T.coral, cursor: "pointer", fontSize: 16, lineHeight: 1, padding: 0 }}>×</button>
+      <button onClick={onDel} className="text-lg leading-none hover:opacity-70">×</button>
     </span>
   );
-}
-
-/* ── Scroll To Top ── */
-export default function ScrollToTop() {
-  const [vis, setVis] = useState(false);
-  if (typeof window !== "undefined") {
-    // Only attach scroll listener on client
-  }
-  return null; // handled in ScrollToTop component file
 }

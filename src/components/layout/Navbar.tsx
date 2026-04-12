@@ -1,8 +1,9 @@
+// src/components/layout/Navbar.tsx
+
 "use client";
 import { useState, useEffect, useRef } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { T, CATS, CAT_META } from "@/lib/constants";
 import { useCart } from "@/context/CartContext";
 import { useAuth } from "@/context/AuthContext";
 import { supabase } from "@/lib/supabase"; 
@@ -15,15 +16,10 @@ export default function Navbar() {
   const { cartCount, wish, setCartOpen, setWishOpen } = useCart();
   const { user, signOut, isAdmin } = useAuth();
   const [search, setSearch] = useState("");
-  const [menuOpen, setMenuOpen] = useState(false);
   const [scrolled, setScrolled] = useState(false);
   const [showAuth, setShowAuth] = useState(false);
-  const [authTab, setAuthTab] = useState<"login" | "signup">("login");
   const [userMenu, setUserMenu] = useState(false);
   const userMenuRef = useRef<HTMLDivElement>(null);
-  const inputRef = useRef<HTMLInputElement>(null);
-
-  // --- নোটিফিকেশন স্টেট ---
   const [notifications, setNotifications] = useState<any[]>([]);
   const [showNoti, setShowNoti] = useState(false);
   const [unreadCount, setUnreadCount] = useState(0);
@@ -44,10 +40,9 @@ export default function Navbar() {
     return () => document.removeEventListener("mousedown", fn);
   }, []);
 
-  // --- নোটিফিকেশন ফেচ এবং রিয়েল-টাইম আপডেট ---
+  // Notification fetch logic (এটা আগের মতোই আছে)
   useEffect(() => {
     if (!user) return;
-
     const fetchNoti = async () => {
       const { data } = await supabase
         .from("notifications")
@@ -60,14 +55,11 @@ export default function Navbar() {
         setUnreadCount(data.filter(n => !n.is_read).length);
       }
     };
-
     fetchNoti();
 
-    // রিয়েল-টাইম লিসেনার: নতুন নোটিফিকেশন আসলে অটো আপডেট হবে
     const channel = supabase
-      .channel('schema-db-changes')
-      .on('postgres_changes', 
-        { event: 'INSERT', schema: 'public', table: 'notifications' }, 
+      .channel('noti-changes')
+      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'notifications' }, 
         (payload) => {
           if (payload.new.user_id === user.id || payload.new.user_id === null) {
             setNotifications(prev => [payload.new, ...prev].slice(0, 10));
@@ -75,7 +67,6 @@ export default function Navbar() {
           }
         }
       ).subscribe();
-
     return () => { supabase.removeChannel(channel); };
   }, [user]);
 
@@ -83,132 +74,170 @@ export default function Navbar() {
     setShowNoti(!showNoti);
     if (!showNoti && unreadCount > 0) {
       setUnreadCount(0);
-      await supabase.from("notifications")
-        .update({ is_read: true })
-        .eq("user_id", user?.id)
-        .eq("is_read", false);
+      await supabase.from("notifications").update({ is_read: true }).eq("user_id", user?.id).eq("is_read", false);
     }
   };
 
-  const displayName = user?.user_metadata?.full_name?.split(" ")[0] ?? user?.email?.split("@")[0] ?? "আমি";
-  const shopLabel = user?.role === "seller" ? "ভিউ শপ 🏬" : "শপ খুলুন 🏪";
-  const shopLink = user?.role === "seller" ? "/dashboard/vendor" : "/open-shop";
+  const displayName = user?.user_metadata?.full_name?.split(" ")[0] ?? user?.email?.split("@")[0] ?? "User";
 
   return (
     <>
-      <header style={{
-        position: "sticky", top: 0, zIndex: 600,
-        background: scrolled ? "rgba(8,8,16,.97)" : "var(--card)",
-        backdropFilter: "blur(22px)", borderBottom: `1px solid ${T.border}`, transition: "background .3s",
-      }}>
-        <div style={{ maxWidth: 1400, margin: "0 auto", padding: "0 20px", height: 64, display: "flex", alignItems: "center", gap: 14 }}>
+      <header className={`sticky top-0 z-[600] h-16 w-full border-b border-border transition-all duration-300 backdrop-blur-xl ${scrolled ? 'bg-background/95 shadow-sm' : 'bg-card'}`}>
+        <div className="mx-auto flex h-full max-w-[1400px] items-center gap-4 px-5">
           
-          <Link href="/" style={{ flexShrink: 0 }}>
-            <span className="playfair" style={{ fontWeight: 900, fontSize: 28, color: T.coral, letterSpacing: "-.02em" }}>KVAD</span>
+          {/* Logo */}
+          <Link href="/" className="shrink-0">
+            <span className="playfair text-2xl font-black tracking-tight text-primary">KVAD</span>
           </Link>
 
-          <form onSubmit={(e) => {e.preventDefault(); router.push(`/search?q=${search}`)}} style={{ flex: 1, maxWidth: 580, position: "relative" }}>
-            <span style={{ position: "absolute", left: 14, top: "50%", transform: "translateY(-50%)", pointerEvents: "none" }}>
-              <Ic n="search" s={16} c={T.muted} />
-            </span>
-            <input ref={inputRef} value={search} onChange={e => setSearch(e.target.value)}
-              placeholder="পণ্য খুঁজুন…"
-              style={{ width: "100%", background: T.raised, border: `1px solid ${T.border}`, borderRadius: 11, padding: "10px 44px 10px 42px", color: T.champagne, fontSize: 13 }} />
+          {/* Search Bar */}
+          <form 
+            onSubmit={(e) => { e.preventDefault(); router.push(`/search?q=${search}`); }} 
+            className="search-bar-container hidden md:block flex-1 max-w-[620px]">
+            <div className="relative">
+              <input 
+                type="text"
+                value={search} 
+                onChange={e => setSearch(e.target.value)}
+                placeholder="পণ্য খুঁজুন..."
+                className="search-input"
+              />
+              <span className="search-icon">
+                <Ic n="search" s={22} />
+              </span>
+            </div>
           </form>
 
-          <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+          {/* Actions */}
+          <div className="nav-capsule-wrapper">
             <ThemeToggle />
-
-            {/* --- নোটিফিকেশন বেল --- */}
+            {/* Notification Bell */}
             {user && (
-              <div ref={notiRef} style={{ position: "relative" }}>
+              <div ref={notiRef} className="relative">
                 <NavIconBtn label="নোটিফিকেশন" badge={unreadCount} onClick={markAsRead}>
-                  {/* আইকন নাম 'bell' না থাকলে 'orders' বা অন্য কিছু দিয়ে টেস্ট করুন */}
-                  <span style={{ fontSize: 20 }}>🔔</span>
+                  <svg xmlns="http://www.w3.org/2000/svg" height="5" viewBox="0 0 24 24" width="5" focusable="false" aria-hidden="true"
+                    style={{pointerEvents: "none", display: "inherit", width: "42%", height: "100%"}}>
+                    <path d="M16 19a4 4 0 11-8 0H4.765C3.21 19 2.25 17.304 3.05 15.97l1.806-3.01A1 1 0 005 12.446V8a7 7 0 0114 0v4.446c0 .181.05.36.142.515l1.807 3.01c.8 1.333-.161 3.029-1.716 3.029H16ZM12 3a5 5 0 00-5 5v4.446a3 3 0 01-.428 1.543L4.765 17h14.468l-1.805-3.01A3 3 0 0117 12.445V8a5 5 0 00-5-5Zm-2 16a2 2 0 104 0h-4Z"></path>
+                  </svg>                
                 </NavIconBtn>
                 
                 {showNoti && (
-                  <div className="scale-in" style={{ position: "absolute", top: "calc(100% + 12px)", right: 0, width: 300, background: T.card, border: `1px solid ${T.border}`, borderRadius: 16, boxShadow: "0 20px 50px rgba(0,0,0,0.4)", zIndex: 700, overflow: "hidden" }}>
-                    <div style={{ padding: "12px 15px", background: T.raised, borderBottom: `1px solid ${T.border}`, display: "flex", justifyContent: "space-between" }}>
-                      <span style={{ fontSize: 13, fontWeight: 700, color: T.coral }}>নোটিফিকেশন</span>
-                      {unreadCount > 0 && <span style={{ fontSize: 10, background: T.coral, color: "#000", padding: "2px 6px", borderRadius: 10, fontWeight: 800 }}>{unreadCount} NEW</span>}
+                  <div className="absolute right-0 top-[calc(100%+10px)] z-[700] w-80 rounded-3xl bg-white/95 dark:bg-zinc-900/95 border border-border shadow-[0_20px_50px_rgba(0,0,0,0.3)] backdrop-blur-xl animate-in fade-in zoom-in-95 duration-200 overflow-hidden">
+                    
+                    {/* হেডার অংশ */}
+                    <div className="flex justify-between items-center bg-muted/50 px-5 py-4 border-b border-border">
+                      <span className="text-sm font-bold text-foreground">নোটিফিকেশন</span>
+                        {unreadCount > 0 && (
+                        <span className="bg-primary text-primary-foreground text-[10px] px-2 py-0.5 rounded-full font-black">
+                          {unreadCount} NEW
+                      </span>
+                      )}
                     </div>
-                    <div style={{ maxHeight: 350, overflowY: "auto" }}>
+                    <div className="max-h-[380px] overflow-y-auto">
                       {notifications.length > 0 ? notifications.map(n => (
-                        <div key={n.id} style={{ padding: "12px 15px", borderBottom: `1px solid ${T.border}`, background: n.is_read ? "transparent" : "rgba(255,127,80,0.04)", transition: ".2s" }}>
-                          <p style={{ fontSize: 13, fontWeight: 600, color: T.champagne, marginBottom: 2 }}>{n.title}</p>
-                          <p style={{ fontSize: 11, color: T.muted, lineHeight: 1.4 }}>{n.message}</p>
-                          <p style={{ fontSize: 9, color: T.dim, marginTop: 6 }}>{new Date(n.created_at).toLocaleTimeString()}</p>
-                        </div>
-                      )) : <div style={{ padding: 40, textAlign: "center", color: T.dim, fontSize: 12 }}>কোনো নোটিফিকেশন নেই</div>}
+                        <div key={n.id} className={`p-5 border-b border-border transition-colors hover:bg-muted/50 ${n.is_read ? '' : 'bg-primary/5'}`}>
+                          <p className="text-sm font-medium text-foreground">{n.title}</p>
+                          <p className="text-xs leading-relaxed text-muted-foreground mt-1.5">{n.message}</p>
+                        </div>)) : 
+                      <div className="p-12 text-center text-sm text-muted-foreground">কোনো নোটিফিকেশন নেই</div>}
                     </div>
-                  </div>
-                )}
-              </div>
-            )}
+                  </div>)}
+              </div>)}
 
+            {/* Wishlist */}
             <NavIconBtn label="উইশলিস্ট" badge={wish.length} onClick={() => setWishOpen(true)}>
-              <Ic n="wishlist" s={20} c={wish.length > 0 ? T.danger : T.muted} solid={wish.length > 0} />
+              <Ic n="wishlist" s={20} className={wish.length > 0 ? "text-destructive" : ""} />
             </NavIconBtn>
 
-            {/* ইউজার মেনু */}
-            <div ref={userMenuRef} style={{ position: "relative" }}>
+            {/* Shopping Bag */}
+            <button 
+              onClick={() => setCartOpen(true)} 
+              className="flex items-center gap-2 rounded-2xl bg-muted px-5 py-2.5 hover:bg-muted/80 transition-all"
+            >
+              <Ic n="cart" s={19} />
+              {/* <span className="hidden text-sm font-medium sm:block">ব্যাগ</span> */}
+              {cartCount > 0 && (
+                <span className="bg-primary px-2 py-0.5 text-xs font-bold text-primary-foreground rounded-lg">
+                  {cartCount}
+                </span>
+              )}
+            </button>
+
+            {/* User Menu */}
+            <div ref={userMenuRef} className="relative">
               {user ? (
                 <>
-                  <button onClick={() => setUserMenu(!userMenu)} style={{ display: "flex", alignItems: "center", gap: 8, background: T.raised, border: `1px solid ${T.border}`, borderRadius: 11, padding: "7px 12px", cursor: "pointer", color: T.champagne }}>
-                    <div style={{ width: 26, height: 26, borderRadius: "50%", background: T.coralG, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 12, fontWeight: 800, color: T.coral }}>{displayName[0]}</div>
-                    <span style={{ fontSize: 13, fontWeight: 600 }}>{displayName}</span>
-                    <Ic n="chevDown" s={12} c={T.muted} />
-                  </button>
+
+                  <NavIconBtn label="" onClick={() => setUserMenu(!userMenu)} >
+                  <svg xmlns="http://www.w3.org/2000/svg" height="5" viewBox="0 0 24 24" width="5" focusable="false" aria-hidden="true"
+                    style={{pointerEvents: "none", display: "inherit", width: "42%", height: "100%"}}>
+                    <path d="M18.5 1A1.5 1.5 0 0 0 17 2.5v3A1.5 1.5 0 0 0 18.5 7h3A1.5 1.5 0 0 0 23 5.5v-3A1.5 1.5 0 0 0 21.5 1h-3zm0 8a1.5 1.5 0 0 0-1.5 1.5v3a1.5 1.5 0 0 0 1.5 1.5h3a1.5 1.5 0 0 0 1.5-1.5v-3A1.5 1.5 0 0 0 21.5 9h-3zm-16 8A1.5 1.5 0 0 0 1 18.5v3A1.5 1.5 0 0 0 2.5 23h3A1.5 1.5 0 0 0 7 21.5v-3A1.5 1.5 0 0 0 5.5 17h-3zm8 0A1.5 1.5 0 0 0 9 18.5v3a1.5 1.5 0 0 0 1.5 1.5h3a1.5 1.5 0 0 0 1.5-1.5v-3a1.5 1.5 0 0 0-1.5-1.5h-3zm8 0a1.5 1.5 0 0 0-1.5 1.5v3a1.5 1.5 0 0 0 1.5 1.5h3a1.5 1.5 0 0 0 1.5-1.5v-3a1.5 1.5 0 0 0-1.5-1.5h-3zm-16-8A1.5 1.5 0 0 0 1 10.5v3A1.5 1.5 0 0 0 2.5 15h3A1.5 1.5 0 0 0 7 13.5v-3A1.5 1.5 0 0 0 5.5 9h-3zm0-8A1.5 1.5 0 0 0 1 2.5v3A1.5 1.5 0 0 0 2.5 7h3A1.5 1.5 0 0 0 7 5.5v-3A1.5 1.5 0 0 0 5.5 1h-3zm8 0A1.5 1.5 0 0 0 9 2.5v3A1.5 1.5 0 0 0 10.5 7h3A1.5 1.5 0 0 0 15 5.5v-3A1.5 1.5 0 0 0 13.5 1h-3zm0 8A1.5 1.5 0 0 0 9 10.5v3a1.5 1.5 0 0 0 1.5 1.5h3a1.5 1.5 0 0 0 1.5-1.5v-3A1.5 1.5 0 0 0 13.5 9h-3z"></path>
+                  </svg>                
+                </NavIconBtn>
+
                   {userMenu && (
-                    <div className="scale-in" style={{ position: "absolute", top: "calc(100% + 8px)", right: 0, background: T.card, border: `1px solid ${T.border}`, borderRadius: 14, padding: 8, minWidth: 190, zIndex: 700, boxShadow: "0 10px 30px rgba(0,0,0,0.5)" }}>
-                       <Link href={shopLink} onClick={() => setUserMenu(false)} style={{ display: "flex", alignItems: "center", gap: 10, padding: "10px 12px", borderRadius: 8, color: T.coral, fontSize: 13, fontWeight: 700 }}>
-                        <span style={{ fontSize: 16 }}>🏬</span> {shopLabel}
-                      </Link>
-                      <div style={{ height: 1, background: T.border, margin: "5px 0" }} />
-                      <Link href="/account" onClick={() => setUserMenu(false)} style={{ display: "flex", alignItems: "center", gap: 10, padding: "10px 12px", borderRadius: 8, color: T.cream, fontSize: 13 }}>
-                        <Ic n="user" s={16} /> প্রোফাইল
-                      </Link>
-                      {isAdmin && (
-                        <Link href="/admin" onClick={() => setUserMenu(false)} style={{ display: "flex", alignItems: "center", gap: 10, padding: "10px 12px", borderRadius: 8, color: T.cream, fontSize: 13 }}>
-                          <Ic n="settings" s={16} /> অ্যাডমিন ড্যাশবোর্ড
+                    <div className="absolute right-0 top-[calc(100%+10px)] z-[700] min-w-[210px] rounded-3xl bg-card p-2 shadow-2xl animate-in fade-in slide-in-from-top-2">
+                      <div className="dropdown-menu">
+                        <Link href={user?.role === "seller" ? "/dashboard/vendor" : "/open-shop"} 
+                          className="flex items-center gap-3 rounded-2xl px-4 py-3 text-sm font-medium hover:bg-muted transition-colors">
+                          <span>🏬</span> {user?.role === "seller" ? "ভিউ শপ" : "শপ খুলুন"}
                         </Link>
-                      )}
-                      <button onClick={async () => { await signOut(); router.push("/"); }} style={{ width: "100%", display: "flex", alignItems: "center", gap: 10, padding: "10px 12px", borderRadius: 8, border: "none", background: "transparent", color: T.danger, fontSize: 13, cursor: "pointer", textAlign: "left" }}>
-                        <Ic n="logout" s={16} /> লগআউট
-                      </button>
+
+                        <div className="my-1 h-px bg-border mx-2" />
+
+                        <Link href="/account" className="flex items-center gap-3 rounded-2xl px-4 py-3 text-sm hover:bg-muted transition-colors">
+                          <Ic n="user" s={18} /> প্রোফাইল
+                        </Link>
+
+                        {isAdmin && (
+                          <Link href="/admin" className="flex items-center gap-3 rounded-2xl px-4 py-3 text-sm hover:bg-muted transition-colors">
+                            <Ic n="settings" s={18} /> অ্যাডমিন প্যানেল
+                          </Link>
+                        )}
+
+                        <button 
+                          onClick={async () => { await signOut(); router.push("/"); }} 
+                          className="flex w-full items-center gap-3 rounded-2xl px-4 py-3 text-sm text-destructive hover:bg-destructive/10 transition-colors"
+                        >
+                          <Ic n="logout" s={18} /> লগআউট
+                        </button>
+                      </div>
                     </div>
                   )}
                 </>
               ) : (
-                <button onClick={() => setShowAuth(true)} style={{ background: T.coral, color: "#000", border: "none", padding: "8px 16px", borderRadius: 10, fontWeight: 700, cursor: "pointer", fontSize: 13 }}>লগইন</button>
+                <button onClick={() => setShowAuth(true)} className="luxury-button text-sm font-semibold">
+                  লগইন
+                </button>
               )}
             </div>
-
-            <button onClick={() => setCartOpen(true)} style={{ display: "flex", alignItems: "center", gap: 8, background: T.raised, border: `1px solid ${T.border}`, borderRadius: 11, padding: "8px 15px", cursor: "pointer", color: T.champagne }}>
-              <Ic n="cart" s={18} />
-              <span style={{ fontWeight: 700, fontSize: 13 }}>ব্যাগ</span>
-              {cartCount > 0 && <span style={{ background: T.coral, color: "#000", borderRadius: 10, padding: "0 6px", fontSize: 11, fontWeight: 900 }}>{cartCount}</span>}
-            </button>
-
           </div>
         </div>
       </header>
-      {showAuth && <AuthModal onClose={() => setShowAuth(false)} defaultTab={authTab} />}
+
+      {showAuth && <AuthModal onClose={() => setShowAuth(false)} />}
     </>
   );
 }
 
-// --- হেল্পার বাটন কম্পোনেন্ট ---
-function NavIconBtn({ children, label, badge, onClick }: { children: React.ReactNode; label: string; badge?: number; onClick: () => void }) {
+function NavIconBtn({ children, label, badge, onClick }: { 
+  children: React.ReactNode; 
+  label: string; 
+  badge?: number; 
+  onClick: () => void;
+}) {
   return (
-    <button onClick={onClick} title={label} style={{ background: "none", border: "none", cursor: "pointer", position: "relative", padding: "8px", borderRadius: 10, display: "flex", alignItems: "center", justifyContent: "center" }}>
+    <button 
+      onClick={onClick} 
+      title={label} 
+      className="relative flex h-11 w-11 items-center justify-center rounded-2xl hover:bg-muted transition-all text-muted-foreground hover:text-foreground"
+    >
       {children}
-      {badge && badge > 0 ? (
-        <span style={{ position: "absolute", top: 2, right: 2, background: T.coral, color: "#000", borderRadius: "50%", width: 16, height: 16, fontSize: 9, fontWeight: 900, display: "flex", alignItems: "center", justifyContent: "center", border: `2px solid ${T.bg}` }}>
+      {badge && badge > 0 && (
+        <span className="absolute right-1.5 top-1.5 flex h-5 w-5 items-center justify-center rounded-full border-2 border-background bg-primary text-[10px] font-bold text-primary-foreground">
           {badge > 9 ? "9+" : badge}
         </span>
-      ) : null}
+      )}
     </button>
   );
 }

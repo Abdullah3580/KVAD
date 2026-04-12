@@ -1,118 +1,166 @@
-/* Fonts now loaded via next/font in layout.tsx */
-*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+@import "tailwindcss";
+@import url('https://fonts.googleapis.com/css2?family=Playfair+Display:wght@400;500;600;700&family=Inter:wght@400;500;600;700&display=swap');
 
-:root {
-  --bg:        #080810;
-  --card:      #0E0E18;
-  --raised:    #141422;
-  --border:    #1E1E30;
-  --border-lt: #2A2A42;
-  --coral:     #FF6B4A;
-  --coral-d:   #D4562E;
-  --coral-g:   rgba(255,107,74,.12);
-  --champagne: #F2E8D9;
-  --cream:     #C8BCA8;
-  --muted:     #6E6E88;
-  --dim:       #363650;
-  --danger:    #FF4466;
-  --ok:        #3DEBA0;
-  --gold:      #F5C842;
-  --sky:       #4DC4FF;
-  --purple:    #A855F7;
-  --teal:      #14B8A6;
-}
+@layer base {
+  :root {
+    /* Light Theme */
+    --background: #ffffff;
+    --foreground: #17171c;
+    --card: #fafafa;
+    --card-foreground: #17171c;
+    --muted: #f0f0f0;
+    --muted-foreground: #67677e;
+    --border: #e0e0e0;
+    
+    --primary: #d3e3fdff;
+    --primary-foreground: #141414;
+    --accent: #d3e3fdff;
+    --success: #6feb9d;
+    --destructive: #f25a5a;
+  }
 
-html { scroll-behavior: smooth; }
-body {
-  font-family: var(--font-dm-sans, 'DM Sans', -apple-system, 'Helvetica Neue', Arial, sans-serif);
-  background: var(--bg);
-  color: var(--champagne);
-  -webkit-font-smoothing: antialiased;
-  overflow-x: hidden;
-}
+  .dark {
+    /* Soft Dark Theme */
+    --background: #171311;
+    --foreground: #f9f9fa;
+    --card: #261f1c;
+    --card-foreground: #f4f4f6;
+    --muted: #332d28;
+    --muted-foreground: #b2b2bd;
+    --border: #383838;
+    
+    --primary: #d3e3fdff;;
+    --primary-foreground: #141414;
+    --accent: #d3e3fdff;
+  }
 
-.playfair {
-  font-family: var(--font-playfair, 'Playfair Display', Georgia, serif);
-}
+  body {
+    font-family: 'Inter', system-ui, sans-serif;
+    background-color: var(--background);
+    color: var(--foreground);
+    transition: background-color 0.4s ease, color 0.4s ease;
+  }
 
-::-webkit-scrollbar          { width: 5px; height: 5px; }
-::-webkit-scrollbar-track    { background: var(--bg); }
-::-webkit-scrollbar-thumb    { background: var(--border); border-radius: 3px; }
-::-webkit-scrollbar-thumb:hover { background: var(--border-lt); }
-
-::selection { background: var(--coral-g); color: var(--coral); }
-
-input, select, textarea, button { font-family: inherit; }
-button { cursor: pointer; }
-button:focus-visible, input:focus-visible, select:focus-visible { outline: 2px solid var(--coral); outline-offset: 2px; }
-::placeholder { color: var(--dim); }
-a { color: inherit; text-decoration: none; }
-
-input[type=range] {
-  -webkit-appearance: none;
-  height: 4px;
-  background: var(--border);
-  border-radius: 2px;
-  cursor: pointer;
-  width: 100%;
-}
-input[type=range]::-webkit-slider-thumb {
-  -webkit-appearance: none;
-  width: 18px; height: 18px;
-  border-radius: 50%;
-  background: var(--coral);
-  cursor: pointer;
-  transition: transform .15s;
-  border: 2px solid var(--bg);
-}
-input[type=range]::-webkit-slider-thumb:hover { transform: scale(1.2); }
-select option { background: var(--raised); color: var(--champagne); }
-
-/* ── Animations ── */
-@keyframes shimmer {
-  0%   { background-position: 200% 0; }
-  100% { background-position: -200% 0; }
-}
-@keyframes fadeIn {
-  from { opacity: 0; transform: translateY(8px); }
-  to   { opacity: 1; transform: translateY(0); }
-}
-@keyframes fadeInUp {
-  from { opacity: 0; transform: translateY(20px); }
-  to   { opacity: 1; transform: translateY(0); }
-}
-@keyframes slideInRight {
-  from { transform: translateX(110%); opacity: 0; }
-  to   { transform: translateX(0);    opacity: 1; }
-}
-@keyframes slideInLeft {
-  from { transform: translateX(-110%); opacity: 0; }
-  to   { transform: translateX(0);    opacity: 1; }
-}
-@keyframes scaleIn {
-  from { opacity: 0; transform: scale(.94); }
-  to   { opacity: 1; transform: scale(1); }
-}
-@keyframes spin   { to { transform: rotate(360deg); } }
-@keyframes pulse  { 0%,100%{opacity:1} 50%{opacity:.4} }
-@keyframes bounce { 0%,100%{transform:translateY(0)} 40%{transform:translateY(-10px)} 60%{transform:translateY(-5px)} }
-@keyframes ticker { 0%{transform:translateX(0)} 100%{transform:translateX(-50%)} }
-@keyframes wiggle { 0%,100%{transform:rotate(0)} 25%{transform:rotate(-5deg)} 75%{transform:rotate(5deg)} }
-
-.fade-in    { animation: fadeIn .3s ease forwards; }
-.fade-up    { animation: fadeInUp .4s ease forwards; }
-.scale-in   { animation: scaleIn .26s cubic-bezier(.34,1.56,.64,1) forwards; }
-.slide-r    { animation: slideInRight .3s cubic-bezier(.25,.46,.45,.94) forwards; }
-.slide-l    { animation: slideInLeft  .3s cubic-bezier(.25,.46,.45,.94) forwards; }
-.spin       { animation: spin .8s linear infinite; }
-.pulse-anim { animation: pulse 2s ease-in-out infinite; }
-
-/* ── Shimmer skeleton ── */
-.shimmer {
-  background: linear-gradient(90deg, var(--raised) 25%, var(--border-lt) 50%, var(--raised) 75%);
-  background-size: 200% 100%;
-  animation: shimmer 1.5s infinite;
+  h1, h2, h3, h4, h5, h6 {
+    font-family: var(--font-playfair);
+    letter-spacing: -0.025em;
+  }
 }
 
-/* ── Page fade ── */
-main { animation: fadeIn .35s ease; }
+@layer components {
+  /* Luxury Button */
+  .luxury-button {
+    @apply px-8 py-3.5 rounded-2xl font-medium transition-all duration-300
+           border border-[#d3e3fdff]/70
+           hover:border-[#d3e3fdff]
+           hover:bg-[#d3e3fdff]/10
+           active:scale-95;
+  }
+
+  /* Luxury Card */
+  .luxury-card {
+    @apply bg-[var(--card)] border border-[var(--border)]
+           rounded-3xl overflow-hidden transition-all duration-500
+           hover:-translate-y-1 hover:shadow-xl;
+  }
+
+  /* Glass Card */
+  .glass-card {
+    background: color-mix(in srgb, var(--card) 75%, transparent);
+    backdrop-filter: blur(22px);
+    -webkit-backdrop-filter: blur(22px);
+    border: 1px solid color-mix(in srgb, var(--border) 60%, transparent);
+  }
+
+  /* ===================== SEARCH BAR ===================== */
+  .search-bar {
+    @apply relative w-full max-w-[620px];
+  }
+
+  .search-input {
+    width: 100%;
+    background-color: var(--card);
+    border: 1px solid var(--border);
+    padding: 14px 20px 14px 52px;
+    font-size: 15px;
+    border-radius: 99px;           /* খুব বড় rounded (pill shape) */
+    transition: all 0.3s ease;
+    color: var(--foreground);
+  }
+
+  .search-input::placeholder {
+    color: var(--muted-foreground);
+  }
+
+  .search-input:focus {
+    outline: none;
+    border-color: #d3e3fdff;;
+    box-shadow: 0 0 0 4px rgba(239, 191, 108, 0.15);
+  }
+
+  .search-icon {
+    position: absolute;
+    left: 20px;
+    top: 50%;
+    transform: translateY(-50%);
+    color: var(--muted-foreground);
+    pointer-events: none;
+    transition: color 0.3s ease;
+  }
+
+  .search-bar:hover .search-icon {
+    /* color: #d3e3fdff; */
+    @apply border-gray-200 dark:border-zinc-700;
+    box-shadow: 0 10px 25px -5px #d3e3fdff;
+  }
+
+  /* Dropdown Menu */
+  .dropdown-menu {
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: 16px;
+    box-shadow: 0 10px 30px -10px rgba(0, 0, 0, 0.3);
+  }
+
+  .dropdown-item {
+    @apply px-4 py-2.5 mx-1 rounded-xl cursor-pointer 
+           hover:bg-[var(--muted)] transition-colors
+           flex items-center gap-3 text-sm;
+  }
+  .nav-capsule-wrapper {
+    @apply flex items-center gap-5 px-6 py-2 ml-auto 
+           bg-white dark:bg-zinc-950 
+           border border-gray-100 dark:border-zinc-800 
+           rounded-full transition-all duration-300;
+    
+    /* স্মুথ লুকের জন্য হালকা শ্যাডো */
+    box-shadow: 0 4px 20px -5px rgba(0, 0, 0, 0.05);
+  }
+
+  /* মাউস নিলে আরও স্মুথ ইফেক্ট হওয়ার জন্য */
+  .nav-capsule-wrapper:hover {
+    @apply border-gray-200 dark:border-zinc-700;
+    box-shadow: 0 10px 25px -5px #d3e3fdff;
+  }
+  .main-container {
+    /* এটি ওয়েবসাইটকে সর্বোচ্চ ১৪৪০ পিক্সেল চওড়া করবে এবং মাঝখানে রাখবে */
+    @apply max-w-[1440px] mx-auto w-full;
+    
+    /* এটি মোবাইলে স্ক্রিনের সাথে লেগে যাওয়া আটকাবে */
+    @apply px-4 sm:px-6 lg:px-10;
+  }
+}
+
+/* Smooth Scrollbar */
+::-webkit-scrollbar {
+  width: 7px;
+  height: 7px;
+}
+::-webkit-scrollbar-thumb {
+  background-color: #555555;
+  border-radius: 20px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background-color: #d3e3fdff;
+  shadow: 0 10px 25px -5px rgb(253, 228, 211);
+}

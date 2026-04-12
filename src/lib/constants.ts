@@ -1,7 +1,7 @@
 export const T = {
   bg:        "#e7e8d7",
   card:      "#0E0E18",
-  raised:    "#141422",
+  raised:    "#ffffff",
   border:    "#1E1E30",
   borderLt:  "#2A2A42",
   coral:     "#FF6B4A",
@@ -80,6 +80,8 @@ export const BANNERS = [
     sub: "এক্সক্লুসিভ শাড়ি ও পাঞ্জাবি — এখনই দেখুন",
     badge: "NEW ARRIVAL",
     img: "https://images.unsplash.com/photo-1610030469983-98e550d6193c?w=700&q=80",
+    //img: "https://www.shutterstock.com/blog/10-background-ideas-for-designs",
+    
     cat: "Saree",
     cta: "এখনই দেখুন",
   },

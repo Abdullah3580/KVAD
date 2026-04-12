@@ -1,7 +1,8 @@
+//src/components/shop/ShopUI.tsx
 "use client";
 import { useState, useEffect, useMemo } from "react";
 import Link from "next/link";
-import { T, fmt, pct, CATS, CAT_META, SORT_OPTS } from "@/lib/constants";
+import { fmt, pct, CATS, CAT_META, SORT_OPTS } from "@/lib/constants";
 import { Product } from "@/lib/types";
 import { Badge, SafeImg, Chip } from "@/components/ui";
 import { Stars } from "@/components/ui/Ic";
@@ -28,65 +29,44 @@ export function FlashSale({ products }: { products: Product[] }) {
   if (!items.length) return null;
 
   return (
-    <section style={{
-      background: `linear-gradient(135deg,#180000,${T.card})`,
-      border: `1px solid rgb(255, 255, 255)`, borderRadius: 20, padding: "22px 24px",
-    }}>
-      <div style={{ display: "flex", alignItems: "center", gap: 16, marginBottom: 20, flexWrap: "wrap" }}>
-        <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-          <Ic n="zap" s={26} c={T.danger} solid />
-          <span className="playfair" style={{ fontSize: 26,fontWeight: 900,color: T.danger}}>ফ্ল্যাশ সেল</span>
+    <section className="luxury-card border-white/20 bg-gradient-to-br from-red-950/40 to-card p-6">
+      <div className="mb-5 flex flex-wrap items-center gap-4">
+        <div className="flex items-center gap-2.5">
+          <Ic n="zap" s={26} className="text-destructive fill-current" />
+          <span className="playfair text-2xl font-black text-destructive">ফ্ল্যাশ সেল</span>
         </div>
+        
         {/* Timer */}
-        <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-          <span style={{ fontSize: 12, color: T.muted }}>শেষ হবে:</span>
-          <div style={{ display: "flex", gap: 4, alignItems: "center" }}>
+        <div className="flex items-center gap-2">
+          <span className="text-xs text-muted-foreground">শেষ হবে:</span>
+          <div className="flex items-center gap-1 font-mono">
             {[h, ":", m, ":", s].map((v, i) =>
               i % 2 === 1
-                ? <span key={i} style={{ color: T.danger, fontWeight: 900, fontSize: 18 }}>:</span>
-                : <span key={i} style={{
-                  background: T.danger, color: "#fff", borderRadius: 6,
-                  padding: "3px 8px", fontSize: 17, fontWeight: 900,
-                  minWidth: 36, textAlign: "center", fontVariantNumeric: "tabular-nums",
-                }}>{v}</span>
+                ? <span key={i} className="text-lg font-black text-destructive">:</span>
+                : <span key={i} className="min-w-[36px] rounded-lg bg-destructive px-2 py-1 text-center text-sm font-black text-white tabular-nums shadow-lg">
+                    {v}
+                  </span>
             )}
           </div>
         </div>
-        <Link href="/?sort=discount" style={{ marginLeft: "auto", fontSize: 13, color: T.coral, fontWeight: 700 }}>
+        <Link href="/?sort=discount" className="ml-auto text-xs font-bold text-primary hover:underline">
           সব দেখুন →
         </Link>
       </div>
 
-      <div style={{ display: "flex", gap: 14, overflowX: "auto", paddingBottom: 6, scrollbarWidth: "none" }}>
+      <div className="flex gap-4 overflow-x-auto pb-2 scrollbar-hide">
         {items.map(p => {
           const d = pct(p.price, p.was);
           return (
-            <Link key={p.id} href={`/product/${p.id}`}
-              style={{
-                minWidth: 160, maxWidth: 160, background: T.raised, borderRadius: 13,
-                overflow: "hidden", border: `1px solid ${T.border}`, flexShrink: 0,
-                transition: "transform .2s", display: "block",
-              }}
-              onMouseEnter={e => (e.currentTarget.style.transform = "translateY(-4px)")}
-              onMouseLeave={e => (e.currentTarget.style.transform = "none")}
-            >
-              <div style={{ position: "relative", paddingTop: "85%", background: T.bg }}>
-                <SafeImg src={p.img} alt={p.name}
-                  style={{ position: "absolute", inset: 0, width: "100%", height: "100%", objectFit: "cover" }} />
-                <span style={{
-                  position: "absolute", top: 8, left: 8,
-                  background: T.danger, color: "#fff",
-                  fontSize: 11, fontWeight: 900, padding: "2px 8px", borderRadius: 5,
-                }}>-{d}%</span>
+            <Link key={p.id} href={`/product/${p.id}`} className="group relative block w-40 shrink-0 overflow-hidden rounded-2xl border border-border bg-muted transition-all hover:-translate-y-1">
+              <div className="relative aspect-[4/5] overflow-hidden bg-background">
+                <SafeImg src={p.img} alt={p.name} className="h-full w-full object-cover transition-transform duration-500 group-hover:scale-110" />
+                <span className="absolute left-2 top-2 rounded-md bg-destructive px-2 py-0.5 text-[10px] font-black text-white">-{d}%</span>
               </div>
-              <div style={{ padding: "10px 12px 14px" }}>
-                <p style={{
-                  fontSize: 12, fontWeight: 700, lineHeight: 1.3, marginBottom: 5,
-                  overflow: "hidden", display: "-webkit-box",
-                  WebkitLineClamp: 2, WebkitBoxOrient: "vertical" as any,
-                }}>{p.name}</p>
-                <p style={{ fontWeight: 900, color: T.danger, fontSize: 16 }}>{fmt(p.price)}</p>
-                <p style={{ fontSize: 11, color: T.dim, textDecoration: "line-through" }}>{fmt(p.was)}</p>
+              <div className="p-3">
+                <p className="mb-1 line-clamp-2 text-[11px] font-semibold leading-tight">{p.name}</p>
+                <p className="text-sm font-black text-destructive">{fmt(p.price)}</p>
+                <p className="text-[10px] text-muted-foreground line-through">{fmt(p.was)}</p>
               </div>
             </Link>
           );
@@ -99,26 +79,18 @@ export function FlashSale({ products }: { products: Product[] }) {
 /* ═══════════════════ CATEGORY SHOWCASE ═══════════════════ */
 export function CategoryShowcase({ counts }: { counts: Record<string, number> }) {
   return (
-    <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill,minmax(160px,1fr))", gap: 14 }}>
+    <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6">
       {CATS.filter(c => c !== "All").map(c => (
         <Link key={c} href={`/?cat=${c}`}
-          style={{
-            background: CAT_META[c]?.grad ?? T.card,
-            border: `1px solid ${T.border}`, borderRadius: 16,
-            padding: "22px 14px", textAlign: "center",
-            transition: "all .22s", display: "block",
-          }}
-          onMouseEnter={e => { (e.currentTarget as HTMLElement).style.transform = "scale(1.04)"; (e.currentTarget as HTMLElement).style.borderColor = T.coral; }}
-          onMouseLeave={e => { (e.currentTarget as HTMLElement).style.transform = "scale(1)"; (e.currentTarget as HTMLElement).style.borderColor = T.border; }}
+          className="luxury-card flex flex-col items-center justify-center p-6 text-center hover:scale-105 hover:border-primary/50"
+          style={{ background: CAT_META[c]?.grad }}
         >
-          <div style={{ fontSize: 34, marginBottom: 10 }}>{CAT_META[c]?.icon}</div>
-          <p style={{ fontWeight: 700, fontSize: 14, color: T.champagne, marginBottom: 4 }}>{c}</p>
-          <p style={{ fontSize: 11, color: T.muted, marginBottom: 8 }}>{CAT_META[c]?.desc}</p>
-          <span style={{
-            fontSize: 11, background: T.raised,
-            border: `1px solid ${T.border}`, borderRadius: 20,
-            padding: "2px 10px", color: T.muted,
-          }}>{counts[c] ?? 0} টি</span>
+          <div className="mb-3 text-4xl">{CAT_META[c]?.icon}</div>
+          <p className="mb-1 text-sm font-bold text-foreground">{c}</p>
+          <p className="mb-2 text-[10px] text-muted-foreground">{CAT_META[c]?.desc}</p>
+          <span className="rounded-full border border-border bg-muted px-2.5 py-0.5 text-[10px] text-muted-foreground">
+            {counts[c] ?? 0} টি
+          </span>
         </Link>
       ))}
     </div>
@@ -137,67 +109,51 @@ export function FilterSidebar({
   const hasFilter = cat !== "All" || minR > 0 || maxP < 10000;
 
   return (
-    <aside style={{ width: 238, flexShrink: 0 }}>
-      <div style={{
-        background: T.card, border: `1px solid ${T.border}`,
-        borderRadius: 15, padding: 22,
-        position: "sticky", top: 140,
-      }}>
-        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 22 }}>
-          <span className="playfair" style={{ fontWeight: 700, fontSize: 18 }}>ফিল্টার</span>
+    <aside className="w-[240px] shrink-0">
+      <div className="luxury-card sticky top-32 p-6">
+        <div className="mb-6 flex items-center justify-between">
+          <span className="playfair text-lg font-bold">ফিল্টার</span>
           {hasFilter && (
-            <button onClick={onReset}
-              style={{ fontSize: 12, color: T.coral, background: "none", border: "none", cursor: "pointer", fontWeight: 700, fontFamily: "inherit" }}>
+            <button onClick={onReset} className="text-[11px] font-bold text-primary hover:opacity-80">
               রিসেট ↺
             </button>
           )}
         </div>
 
         {/* Categories */}
-        <p style={{ fontSize: 10, fontWeight: 700, color: T.muted, textTransform: "uppercase", letterSpacing: ".08em", marginBottom: 10 }}>ক্যাটাগরি</p>
-        <div style={{ marginBottom: 24, display: "flex", flexDirection: "column", gap: 5 }}>
+        <p className="mb-3 text-[10px] font-black uppercase tracking-widest text-muted-foreground">ক্যাটাগরি</p>
+        <div className="mb-6 flex flex-col gap-1.5">
           {CATS.map(c => (
             <button key={c} onClick={() => setCat(c)}
-              style={{
-                display: "flex", justifyContent: "space-between", alignItems: "center",
-                width: "100%", padding: "9px 12px",
-                background: cat === c ? T.coralG : "transparent",
-                border: `1px solid ${cat === c ? T.coral : T.border}`,
-                borderRadius: 9, color: cat === c ? T.coral : T.muted,
-                cursor: "pointer", fontFamily: "inherit", fontSize: 13,
-                fontWeight: cat === c ? 700 : 400, transition: "all .15s",
-              }}>
+              className={`flex items-center justify-between rounded-xl border px-3 py-2 text-xs transition-all ${
+                cat === c ? 'border-primary bg-primary/10 text-primary font-bold' : 'border-border bg-transparent text-muted-foreground'
+              }`}
+            >
               <span>{CAT_META[c]?.icon} {c}</span>
-              <span style={{ fontSize: 11 }}>{loading ? "…" : counts[c] ?? 0}</span>
+              <span className="text-[10px] opacity-60">{loading ? "…" : counts[c] ?? 0}</span>
             </button>
           ))}
         </div>
 
         {/* Price */}
-        <p style={{ fontSize: 10, fontWeight: 700, color: T.muted, textTransform: "uppercase", letterSpacing: ".08em", marginBottom: 8 }}>
-          সর্বোচ্চ দাম: <span style={{ color: T.coral }}>{fmt(maxP)}</span>
+        <p className="mb-2 text-[10px] font-black uppercase tracking-widest text-muted-foreground">
+          সর্বোচ্চ দাম: <span className="text-primary">{fmt(maxP)}</span>
         </p>
         <input type="range" min={100} max={10000} step={100} value={maxP}
-          onChange={e => setMaxP(+e.target.value)} style={{ marginBottom: 4 }} />
-        <div style={{ display: "flex", justifyContent: "space-between", fontSize: 10, color: T.dim, marginBottom: 24 }}>
+          onChange={e => setMaxP(+e.target.value)} className="w-full accent-primary" />
+        <div className="mb-6 flex justify-between text-[10px] text-muted-foreground/60 font-mono">
           <span>৳১০০</span><span>৳১০,০০০</span>
         </div>
 
         {/* Rating */}
-        <p style={{ fontSize: 10, fontWeight: 700, color: T.muted, textTransform: "uppercase", letterSpacing: ".08em", marginBottom: 10 }}>ন্যূনতম রেটিং</p>
-        <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+        <p className="mb-3 text-[10px] font-black uppercase tracking-widest text-muted-foreground">ন্যূনতম রেটিং</p>
+        <div className="flex flex-col gap-2.5">
           {[4, 3, 2, 1].map(r => (
-            <label key={r} style={{ display: "flex", alignItems: "center", gap: 8, cursor: "pointer", fontSize: 12, color: minR === r ? T.coral : T.muted }}>
-              <input type="radio" name="minR" checked={minR === r} onChange={() => setMinR(r)} style={{ accentColor: T.coral }} />
+            <label key={r} className={`flex cursor-pointer items-center gap-2 text-xs transition-colors ${minR === r ? 'text-primary' : 'text-muted-foreground'}`}>
+              <input type="radio" name="minR" checked={minR === r} onChange={() => setMinR(r)} className="accent-primary" />
               <Stars r={r} s={12} /> ও উপরে
             </label>
           ))}
-          {minR > 0 && (
-            <button onClick={() => setMinR(0)}
-              style={{ fontSize: 11, color: T.muted, background: "none", border: "none", cursor: "pointer", fontFamily: "inherit", textAlign: "left" }}>
-              বাতিল ×
-            </button>
-          )}
         </div>
       </div>
     </aside>
@@ -219,71 +175,55 @@ export function ShopToolbar({
   onRemovePrice: () => void; onRemoveSearch: () => void; onResetAll: () => void;
 }) {
   return (
-    <div style={{ marginBottom: 16 }}>
-      <div style={{
-        display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap",
-        padding: "12px 16px", background: T.card,
-        borderRadius: 12, border: `1px solid ${T.border}`,
-      }}>
+    <div className="mb-4">
+      <div className="flex flex-wrap items-center gap-3 rounded-2xl border border-border bg-card px-4 py-3 shadow-sm">
         <button onClick={() => setShowFilter(!showFilter)}
-          style={{
-            display: "flex", alignItems: "center", gap: 6,
-            background: "none", border: `1px solid ${showFilter ? T.coral : T.border}`,
-            borderRadius: 8, padding: "7px 14px",
-            color: showFilter ? T.coral : T.muted,
-            cursor: "pointer", fontFamily: "inherit", fontSize: 13, fontWeight: 600,
-          }}>
-          <Ic n="filter" s={14} c={showFilter ? T.coral : T.muted} />
-          ফিল্টার
+          className={`flex items-center gap-2 rounded-xl border px-4 py-2 text-xs font-bold transition-all ${
+            showFilter ? 'border-primary text-primary bg-primary/10' : 'border-border text-muted-foreground bg-muted/50'
+          }`}
+        >
+          <Ic n="filter" s={14} /> ফিল্টার
         </button>
 
-        <span style={{ fontSize: 13, color: T.muted }}>
-          <span style={{ color: T.champagne, fontWeight: 700 }}>{count}</span> টি পণ্য
+        <span className="text-xs text-muted-foreground">
+          <span className="font-bold text-foreground">{count}</span> টি পণ্য পাওয়া গেছে
         </span>
 
-        <div style={{ flex: 1 }} />
+        <div className="flex-1" />
 
         <select value={sort} onChange={e => setSort(e.target.value)}
-          style={{
-            background: T.raised, border: `1px solid ${T.border}`,
-            borderRadius: 8, padding: "8px 13px", color: T.champagne,
-            fontSize: 13, cursor: "pointer", fontFamily: "inherit",
-          }}>
+          className="rounded-xl border border-border bg-muted px-4 py-2 text-xs font-semibold text-foreground focus:outline-none focus:ring-1 focus:ring-primary"
+        >
           {SORT_OPTS.map(o => <option key={o.v} value={o.v}>{o.l}</option>)}
         </select>
 
         {/* View toggles */}
-        <div style={{ display: "flex", background: T.raised, border: `1px solid ${T.border}`, borderRadius: 9, overflow: "hidden" }}>
+        <div className="flex overflow-hidden rounded-xl border border-border bg-muted">
           {([["grid3", 3], ["grid4", 4]] as [any, 3 | 4][]).map(([ic, n]) => (
             <button key={n} onClick={() => { setView("grid"); setCols(n); }}
-              style={{
-                padding: "8px 11px",
-                background: view === "grid" && cols === n ? T.coralG : "transparent",
-                border: "none", cursor: "pointer",
-              }}>
-              <Ic n={ic} s={16} c={view === "grid" && cols === n ? T.coral : T.muted} />
+              className={`p-2.5 transition-colors ${view === "grid" && cols === n ? 'bg-primary text-white' : 'hover:bg-primary/10 text-muted-foreground'}`}
+            >
+              <Ic n={ic} s={16} />
             </button>
           ))}
           <button onClick={() => setView("list")}
-            style={{ padding: "8px 11px", background: view === "list" ? T.coralG : "transparent", border: "none", cursor: "pointer" }}>
-            <Ic n="list" s={16} c={view === "list" ? T.coral : T.muted} />
+            className={`p-2.5 transition-colors ${view === "list" ? 'bg-primary text-white' : 'hover:bg-primary/10 text-muted-foreground'}`}
+          >
+            <Ic n="list" s={16} />
           </button>
         </div>
       </div>
 
       {/* Active filter chips */}
       {(cat !== "All" || minR > 0 || maxP < 10000 || search) && (
-        <div style={{ display: "flex", gap: 7, flexWrap: "wrap", marginTop: 10 }}>
+        <div className="mt-3 flex flex-wrap gap-2">
           {cat !== "All" && <Chip label={cat} onDel={onRemoveCat} />}
           {minR > 0     && <Chip label={`${minR}★+`} onDel={onRemoveRating} />}
           {maxP < 10000 && <Chip label={`≤${fmt(maxP)}`} onDel={onRemovePrice} />}
           {search       && <Chip label={`"${search}"`} onDel={onRemoveSearch} />}
-          <button onClick={onResetAll}
-            style={{
-              fontSize: 12, color: T.muted, background: T.raised,
-              border: `1px solid ${T.border}`, borderRadius: 20,
-              padding: "4px 12px", cursor: "pointer", fontFamily: "inherit",
-            }}>সব বাতিল ×</button>
+          <button onClick={onResetAll} className="rounded-full border border-border bg-muted px-3 py-1 text-[10px] font-bold text-muted-foreground hover:bg-destructive hover:text-white transition-colors">
+            সব বাতিল ×
+          </button>
         </div>
       )}
     </div>
