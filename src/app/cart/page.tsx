@@ -74,8 +74,11 @@ export default function CartPage() {
               borderRadius: 14, alignItems: "flex-start",
             }}>
               <Link href={`/product/${item.id}`}>
-                <SafeImg src={item.img} alt={item.name}
-                  style={{ width: 110, height: 110, objectFit: "cover", borderRadius: 10, flexShrink: 0, cursor: "pointer" }} />
+                <SafeImg 
+                  src={item.img} 
+                  alt={item.name}
+                  className="w-[110px] h-[110px] object-cover rounded-xl flex-shrink-0 cursor-pointer"
+                />
               </Link>
               <div style={{ flex: 1 }}>
                 <p style={{ fontSize: 11, color: T.muted, textTransform: "uppercase", marginBottom: 3 }}>{item.cat}</p>
