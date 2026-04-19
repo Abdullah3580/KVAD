@@ -102,7 +102,7 @@ export default function Navbar() {
                 placeholder="পণ্য খুঁজুন..."
                 className="search-input"
               />
-              <span className="search-icon">
+              <span className="search-icon" >
                 <Ic n="search" s={22} />
               </span>
             </div>

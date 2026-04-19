@@ -80,7 +80,7 @@
   .search-input {
     width: 100%;
     background-color: var(--card);
-    border: 1px solid var(--border);
+    /* border: 10px solid var(--border); */
     padding: 14px 20px 14px 52px;
     font-size: 15px;
     border-radius: 99px;           /* খুব বড় rounded (pill shape) */
@@ -94,8 +94,9 @@
 
   .search-input:focus {
     outline: none;
-    border-color: #d3e3fdff;;
-    box-shadow: 0 0 0 4px rgba(239, 191, 108, 0.15);
+    /* border-color: #d3e3fdff; */
+    /* box-shadow: 0 0 100 4px #efbf6c26; */
+    box-shadow: 0 10px 25px -5px #d3e3fdff;
   }
 
   .search-icon {
@@ -111,15 +112,20 @@
   .search-bar:hover .search-icon {
     /* color: #d3e3fdff; */
     @apply border-gray-200 dark:border-zinc-700;
-    box-shadow: 0 10px 25px -5px #d3e3fdff;
+    
+    /* box-shadow: 0 4px 20px -5px rgba(0, 0, 0, 0.05); */
+    box-shadow: 0 100px 25px -5px #d3e3fdff;
   }
 
   /* Dropdown Menu */
   .dropdown-menu {
     background: var(--card);
-    border: 1px solid var(--border);
+    border: 10px; 
+    /* solid var(--border); */
     border-radius: 16px;
-    box-shadow: 0 10px 30px -10px rgba(0, 0, 0, 0.3);
+    border-color: rgb(255, 0, 0);
+    /* box-shadow: 0 10px 30px -10px #0000004d; */
+    box-shadow: 0 10px 25px -5px #d3e3fdff;
   }
 
   .dropdown-item {
@@ -140,6 +146,7 @@
   /* মাউস নিলে আরও স্মুথ ইফেক্ট হওয়ার জন্য */
   .nav-capsule-wrapper:hover {
     @apply border-gray-200 dark:border-zinc-700;
+    /* box-shadow: 0 10px 25px -5px #d3e3fdff; */
     box-shadow: 0 10px 25px -5px #d3e3fdff;
   }
   .main-container {
