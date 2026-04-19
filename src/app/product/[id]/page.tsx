@@ -86,8 +86,11 @@ export default function ProductPage() {
         {/* ── Image Gallery ── */}
         <div>
           <div style={{ position: "relative", borderRadius: 16, overflow: "hidden", background: T.raised, aspectRatio: "4/3" }}>
-            <SafeImg src={gal[imgIdx] || p.img} alt={p.name}
-              style={{ width: "100%", height: "100%", objectFit: "cover" }} />
+            <SafeImg 
+              src={gal[imgIdx] || p.img} 
+              alt={p.name}
+              className="w-full h-full object-cover"
+            />
             {d >= 10 && <Badge text={`-${d}%`} type="danger" style={{ position: "absolute", top: 14, left: 14 }} />}
             {p.is_featured && <Badge text="FEATURED" type="gold" style={{ position: "absolute", top: 14, left: d >= 10 ? 72 : 14 }} />}
             {p.stock === 0 && (
@@ -115,7 +118,11 @@ export default function ProductPage() {
               {gal.map((src, i) => (
                 <div key={i} onClick={() => setImgIdx(i)}
                   style={{ width: 72, height: 72, flexShrink: 0, borderRadius: 9, overflow: "hidden", cursor: "pointer", border: `2px solid ${i === imgIdx ? T.coral : T.border}`, transition: "border-color .15s" }}>
-                  <SafeImg src={src} alt="" style={{ width: "100%", height: "100%", objectFit: "cover" }}/>
+                  <SafeImg 
+                    src={src} 
+                    alt="" 
+                    className="w-full h-full object-cover"
+                  />
                 </div>
               ))}
             </div>
