@@ -66,9 +66,32 @@ export default function OrdersPage() {
         </div>
       </div>
 
-      {loading && <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>{[1,2,3].map(i => <div key={i} style={{ background: T.card, borderRadius: 14, padding: 20, border: `1px solid ${T.border}` }}><Skeleton h={14} w="50%" style={{ marginBottom: 10 }}/><Skeleton h={10} w="70%"/></div>)}</div>}
-      {!loading && list.length === 0 && <EmptyState icon="📦" title="কোনো অর্ডার নেই" sub="এখনই কেনাকাটা শুরু করুন!" action="শপে যান" onAction={() => router.push("/")}/>}
+      {loading && (
+      <div className="flex flex-col gap-4">
+        {[1, 2, 3].map((_, i) => (
+          <div 
+            key={i} 
+            className="bg-card border border-border rounded-2xl p-6 animate-pulse"
+          >
+            <div className="flex justify-between items-start">
+              <div className="space-y-3 flex-1">
+                {/* Order number skeleton */}
+                <div className="h-4 bg-muted rounded w-40" />
+                
+                {/* Date skeleton */}
+                <div className="h-3 bg-muted rounded w-32" />
+              </div>
+              
+              {/* Status skeleton */}
+              <div className="h-8 w-24 bg-muted rounded-full" />
+            </div>
 
+            {/* Price skeleton */}
+            <div className="h-5 bg-muted rounded w-28 mt-6" />
+          </div>
+        ))}
+      </div>
+    )}
       {!loading && list.length > 0 && (
         <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
           {list.map(o => {
