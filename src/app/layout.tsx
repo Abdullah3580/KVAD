@@ -8,11 +8,11 @@ import { AuthProvider }  from "@/context/AuthContext";
 import Navbar            from "@/components/layout/Navbar";
 import Footer            from "@/components/layout/Footer";
 import AnnouncementBar   from "@/components/layout/AnnouncementBar";
-import CartDrawer        from "@/components/cart/CartDrawer";
+import CartDrawer        from "@/components/cart/CartDrawer"; 
 import WishlistDrawer    from "@/components/cart/WishlistDrawer";
 import ScrollToTop       from "@/components/ui/ScrollToTop";
 
-// Fix: use next/font instead of Google Fonts @import
+// ফন্ট কনফিগারেশন
 const playfair = Playfair_Display({
   subsets: ["latin"],
   weight: ["600", "700", "800", "900"],
@@ -40,20 +40,18 @@ export const viewport: Viewport = {
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
     <html lang="bn" className={`${playfair.variable} ${dmSans.variable}`}>
-      <body>
+      <body className="antialiased font-sans">
         <AuthProvider>
           <CartProvider>
-            {/* <ThemeProvider> */}
-              <ToastProvider>
-                <AnnouncementBar />
-                <Navbar/>
-                <main>{children}</main>
-                <Footer />
-                <CartDrawer />
-                <WishlistDrawer />
-                <ScrollToTop />
-              </ToastProvider>
-            {/* </ThemeProvider> */}
+            <ToastProvider>
+              <AnnouncementBar />
+              <Navbar/>
+              <main>{children}</main>
+              <Footer />
+              <CartDrawer />
+              <WishlistDrawer />
+              <ScrollToTop />
+            </ToastProvider>
           </CartProvider>
         </AuthProvider>
       </body>

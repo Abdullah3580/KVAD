@@ -206,3 +206,4 @@ export function Chip({ label, onDel }: { label: string; onDel: () => void }) {
     </span>
   );
 }
+export default CartDrawer;
