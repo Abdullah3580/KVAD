@@ -1,165 +1,208 @@
+/* src/components/ui/index.tsx */
 "use client";
-import { useState } from "react";
-import Link from "next/link";
-import { useRouter } from "next/navigation";
-import { T, fmt, FREE_SHIP } from "@/lib/constants";
-import { useCart } from "@/context/CartContext";
-import { useToast } from "@/context/ToastContext";
-import { supabase } from "@/lib/supabase";
-import { SafeImg, Btn } from "@/components/ui";
-import Ic from "@/components/ui/Ic";
+import { useState, ReactNode, CSSProperties } from "react";
 
-export default function CartDrawer() {
-  const router = useRouter();
-  const { cart, cartOpen, setCartOpen, removeCart, updateQty } = useCart();
-  const toast = useToast();
-  const [code, setCode]      = useState("");
-  const [disc, setDisc]      = useState(0);
-  const [couponMsg, setCMsg] = useState("");
-  const [cLoading, setCLoading] = useState(false);
+/* ── Button ── */
+type BtnVariant = "coral" | "ghost" | "outline" | "danger" | "ok" | "dark" | "gold";
+type BtnSize    = "xs" | "sm" | "md" | "lg" | "xl";
 
-  const sub  = cart.reduce((s, i) => s + i.price * i.qty, 0);
-  const ship = sub >= FREE_SHIP ? 0 : 80;
-  const tot  = sub - disc + ship;
+const BTN_VARIANTS: Record<BtnVariant, string> = {
+  coral:   "bg-primary text-primary-foreground border-transparent hover:brightness-90",
+  ghost:   "bg-transparent text-muted-foreground border-border hover:bg-muted",
+  outline: "bg-transparent text-primary border-primary hover:bg-primary/10",
+  danger:  "bg-destructive text-white border-transparent hover:brightness-90",
+  ok:      "bg-emerald-500 text-white border-transparent hover:brightness-90",
+  dark:    "bg-card text-foreground border-border hover:bg-muted",
+  gold:    "bg-amber-500 text-black border-transparent hover:brightness-90",
+};
 
-  // Fix: coupon validation via DB, not hardcoded
-  const applyCode = async () => {
-    if (!code.trim()) return;
-    setCLoading(true);
-    const { data, error } = await supabase
-      .from("coupons")
-      .select("*")
-      .eq("code", code.trim().toUpperCase())
-      .eq("is_active", true)
-      .single();
+const BTN_SIZES: Record<BtnSize, string> = {
+  xs: "px-2.5 py-1 text-[11px]",
+  sm: "px-4 py-1.5 text-xs",
+  md: "px-6 py-2.5 text-sm",
+  lg: "px-8 py-3.5 text-base",
+  xl: "px-10 py-4 text-lg",
+};
 
-    if (error || !data) {
-      setDisc(0); setCMsg("অকার্যকর কোড ❌");
-    } else if (data.expires_at && new Date(data.expires_at) < new Date()) {
-      setDisc(0); setCMsg("কোডের মেয়াদ শেষ ❌");
-    } else if (data.min_order && sub < data.min_order) {
-      setDisc(0); setCMsg(`ন্যূনতম অর্ডার ৳${data.min_order} হতে হবে`);
-    } else {
-      const pct = Number(data.discount ?? 0);
-      setDisc(Math.round((sub * pct) / 100));
-      setCMsg(`✓ ${pct}% ছাড় প্রয়োগ!`);
-    }
-    setCLoading(false);
-  };
+export function Btn({
+  children, onClick, v = "coral", sz = "md",
+  disabled = false, full = false, className = "", href, loading = false,
+  style, 
+}: {
+  children: ReactNode; onClick?: () => void; v?: BtnVariant; sz?: BtnSize;
+  disabled?: boolean; full?: boolean; className?: string; href?: string;
+  loading?: boolean; style?: CSSProperties;
+}) {
+  const baseClass = `inline-flex items-center justify-center gap-2 font-bold rounded-xl transition-all duration-200 border active:scale-[0.98] ${
+    disabled || loading ? "opacity-50 cursor-not-allowed" : "cursor-pointer"
+  } ${full ? "w-full" : "w-auto"} ${BTN_VARIANTS[v]} ${BTN_SIZES[sz]} ${className}`;
 
-  if (!cartOpen) return null;
+  if (href) return <a href={href} className={baseClass} style={style}>{children}</a>;
 
   return (
-    <div style={{ position: "fixed", inset: 0, zIndex: 900, display: "flex" }}>
-      <div onClick={() => setCartOpen(false)}
-        style={{ flex: 1, background: "rgba(0,0,0,.75)", backdropFilter: "blur(8px)" }} />
-      <div className="slide-r" style={{
-        width: 440, background: T.card, borderLeft: `1px solid ${T.border}`,
-        display: "flex", flexDirection: "column", maxHeight: "100vh",
-      }}>
-        {/* Header */}
-        <div style={{
-          padding: "22px 24px", borderBottom: `1px solid ${T.border}`,
-          display: "flex", justifyContent: "space-between", alignItems: "center", flexShrink: 0,
-        }}>
-          <h2 className="playfair" style={{ fontWeight: 700, fontSize: 20 }}>
-            আপনার ব্যাগ <span style={{ fontSize: 14, fontWeight: 400, color: T.muted }}>({cart.reduce((s, i) => s + i.qty, 0)} টি)</span>
-          </h2>
-          <button onClick={() => setCartOpen(false)} style={{ background: "none", border: "none", color: T.muted, cursor: "pointer" }}>
-            <Ic n="x" />
-          </button>
-        </div>
+    <button 
+      onClick={disabled || loading ? undefined : onClick}
+      disabled={disabled || loading}
+      className={baseClass}
+      style={style}
+    >
+      {loading && <span className="h-4 w-4 animate-spin rounded-full border-2 border-current border-t-transparent" />}
+      {children}
+    </button>
+  );
+}
 
-        {/* Items */}
-        <div style={{ flex: 1, overflowY: "auto", padding: "14px 20px", display: "flex", flexDirection: "column", gap: 10 }}>
-          {cart.length === 0 ? (
-            <div style={{ textAlign: "center", paddingTop: 80, color: T.muted }}>
-              <Ic n="cart" s={52} c={T.dim} />
-              <p style={{ marginTop: 16, fontSize: 16 }}>ব্যাগ খালি</p>
-              <p style={{ fontSize: 12, marginTop: 6 }}>কিছু পণ্য যোগ করুন!</p>
-            </div>
-          ) : cart.map(item => (
-            <div key={item.cartKey} style={{
-              display: "flex", gap: 12, padding: 12,
-              background: T.raised, borderRadius: 11, border: `1px solid ${T.border}`,
-            }}>
-              <Link href={`/product/${item.id}`} onClick={() => setCartOpen(false)}>
-                <SafeImg src={item.img} alt={item.name}
-                  style={{ width: 76, height: 76, objectFit: "cover", borderRadius: 8, flexShrink: 0 }} />
-              </Link>
-              <div style={{ flex: 1, minWidth: 0 }}>
-                <p style={{ fontSize: 10, color: T.muted, textTransform: "uppercase", letterSpacing: ".05em" }}>{item.cat}</p>
-                <Link href={`/product/${item.id}`} onClick={() => setCartOpen(false)}>
-                  <p style={{
-                    fontWeight: 700, fontSize: 13, lineHeight: 1.3, marginBottom: 3,
-                    overflow: "hidden", display: "-webkit-box",
-                    WebkitLineClamp: 2, WebkitBoxOrient: "vertical" as React.CSSProperties["WebkitBoxOrient"],
-                  }}>{item.name}</p>
-                </Link>
-                {item.selectedSize  && <p style={{ fontSize: 11, color: T.muted }}>সাইজ: {item.selectedSize}</p>}
-                {item.selectedColor && <p style={{ fontSize: 11, color: T.muted }}>রঙ: {item.selectedColor}</p>}
-                <p style={{ color: T.coral, fontWeight: 800, fontSize: 14, margin: "4px 0 8px" }}>{fmt(item.price)}</p>
-                <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                  <button onClick={() => updateQty(item.cartKey, item.qty - 1)}
-                    style={{ width: 26, height: 26, borderRadius: "50%", background: T.card, border: `1px solid ${T.border}`, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}>
-                    <Ic n="minus" s={12} c={T.muted} />
-                  </button>
-                  <span style={{ fontWeight: 700, fontSize: 14, minWidth: 20, textAlign: "center" }}>{item.qty}</span>
-                  <button onClick={() => updateQty(item.cartKey, item.qty + 1)}
-                    style={{ width: 26, height: 26, borderRadius: "50%", background: T.card, border: `1px solid ${T.border}`, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}>
-                    <Ic n="plus" s={12} c={T.muted} />
-                  </button>
-                  <button onClick={() => { removeCart(item.cartKey); toast("বাদ দেওয়া হয়েছে"); }}
-                    style={{ marginLeft: "auto", background: "none", border: "none", cursor: "pointer" }}>
-                    <Ic n="trash" s={15} c={T.danger} />
-                  </button>
-                </div>
-              </div>
-            </div>
-          ))}
-        </div>
+/* ── Badge / Pill ── */
+type BadgeType = "coral" | "danger" | "sky" | "gold" | "ok" | "purple" | "teal" | "muted";
+const BADGE_VARIANTS: Record<BadgeType, string> = {
+  coral: "bg-primary text-primary-foreground",
+  danger: "bg-destructive text-white",
+  sky: "bg-sky-500 text-white",
+  gold: "bg-amber-500 text-black",
+  ok: "bg-emerald-500 text-white",
+  purple: "bg-purple-500 text-white",
+  teal: "bg-teal-500 text-white",
+  muted: "bg-muted text-muted-foreground",
+};
 
-        {/* Footer */}
-        {cart.length > 0 && (
-          <div style={{ padding: "16px 20px", borderTop: `1px solid ${T.border}`, flexShrink: 0 }}>
-            {/* Coupon */}
-            <div style={{ display: "flex", gap: 8, marginBottom: 14 }}>
-              <input value={code} onChange={e => setCode(e.target.value)}
-                onKeyDown={e => e.key === "Enter" && applyCode()}
-                placeholder="কুপন কোড"
-                style={{ flex: 1, background: T.raised, border: `1px solid ${T.border}`, borderRadius: 8, padding: "9px 12px", color: T.champagne, fontSize: 13, fontFamily: "inherit" }} />
-              <Btn sz="sm" v="outline" onClick={applyCode} loading={cLoading}>প্রয়োগ</Btn>
-            </div>
-            {couponMsg && <p style={{ fontSize: 12, color: couponMsg[0] === "✓" ? T.ok : T.danger, marginBottom: 10 }}>{couponMsg}</p>}
+export function Badge({ text, type = "coral", tiny = false, className = "" }: {
+  text: string; type?: BadgeType; tiny?: boolean; className?: string;
+}) {
+  return (
+    <span className={`inline-flex shrink-0 items-center justify-center rounded px-2 py-0.5 font-black uppercase tracking-widest leading-none ${
+      tiny ? "text-[8px]" : "text-[10px]"
+    } ${BADGE_VARIANTS[type]} ${className}`}>
+      {text}
+    </span>
+  );
+}
 
-            {/* Summary */}
-            <div style={{ display: "flex", flexDirection: "column", gap: 7, fontSize: 13, marginBottom: 16 }}>
-              <div style={{ display: "flex", justifyContent: "space-between" }}>
-                <span style={{ color: T.muted }}>সাবটোটাল</span><span>{fmt(sub)}</span>
-              </div>
-              {disc > 0 && (
-                <div style={{ display: "flex", justifyContent: "space-between" }}>
-                  <span style={{ color: T.muted }}>কুপন ছাড়</span><span style={{ color: T.ok }}>-{fmt(disc)}</span>
-                </div>
-              )}
-              <div style={{ display: "flex", justifyContent: "space-between" }}>
-                <span style={{ color: T.muted }}>ডেলিভারি</span>
-                <span style={{ color: sub >= FREE_SHIP ? T.ok : undefined }}>{sub >= FREE_SHIP ? "বিনামূল্যে 🎉" : fmt(ship)}</span>
-              </div>
-              <div style={{ display: "flex", justifyContent: "space-between", fontWeight: 900, fontSize: 18, paddingTop: 10, borderTop: `1px solid ${T.border}` }}>
-                <span>মোট</span><span style={{ color: T.coral }}>{fmt(tot)}</span>
-              </div>
-            </div>
+export function OutlineBadge({ text, type = "coral", className = "" }: {
+  text: string; type?: BadgeType; className?: string;
+}) {
+  return (
+    <span className={`inline-flex items-center justify-center rounded-full border border-current/20 bg-current/10 px-3 py-1 text-xs font-bold capitalize ${
+      type === 'coral' ? 'text-primary' : 'text-muted-foreground'
+    } ${className}`}>
+      {text}
+    </span>
+  );
+}
 
-            <Btn full sz="lg" onClick={() => { setCartOpen(false); router.push("/checkout"); }}>
-              চেকআউট করুন <Ic n="arrow" s={16} />
-            </Btn>
-            <p style={{ fontSize: 11, color: T.muted, textAlign: "center", marginTop: 10 }}>
-              বিকাশ · নগদ · রকেট · COD গ্রহণযোগ্য
-            </p>
-          </div>
-        )}
+/* ── Skeleton ── */
+export function Skeleton({ className = "" }: { className?: string }) {
+  return <div className={`animate-pulse rounded-md bg-muted ${className}`} />;
+}
+
+export function ProductSkeleton() {
+  return (
+    <div className="luxury-card overflow-hidden">
+      <div className="aspect-[4/5] w-full animate-pulse bg-muted" />
+      <div className="flex flex-col gap-3 p-4">
+        <Skeleton className="h-3 w-1/3" />
+        <Skeleton className="h-4 w-full" />
+        <Skeleton className="h-3 w-2/3" />
+        <Skeleton className="h-5 w-1/2 mt-2" />
       </div>
     </div>
+  );
+}
+
+/* ── Safe image with fallback ── */
+export function SafeImg({ src, alt = "", className = "", fallback = "📦", style }: {
+  src?: string; alt?: string; className?: string; fallback?: string; style?: CSSProperties;
+}) {
+  const [err, setErr] = useState(false);
+  if (!src || err) return (
+    <div 
+      style={style} 
+      className={`flex items-center justify-center bg-muted text-muted-foreground text-3xl ${className}`}
+    >
+      {fallback}
+    </div>
+  );
+  return (
+    <img 
+      src={src} 
+      alt={alt} 
+      className={className} 
+      style={style} 
+      onError={() => setErr(true)} 
+    />
+  );
+}
+
+/* ── Divider ── */
+export function Divider({ className = "" }: { className?: string }) {
+  return <div className={`h-px w-full bg-border ${className}`} />;
+}
+
+/* ── Section Header ── */
+export function SectionHead({ title, sub, action, actionHref }: {
+  title: string; sub?: string; action?: string; actionHref?: string;
+}) {
+  return (
+    <div className="mb-6 flex items-end justify-between">
+      <div>
+        <h2 className="playfair text-2xl font-bold md:text-3xl">{title}</h2>
+        {sub && <p className="mt-1 text-sm text-muted-foreground">{sub}</p>}
+      </div>
+      {action && (
+        <a href={actionHref ?? "#"} className="flex items-center gap-1 text-sm font-bold text-primary hover:underline">
+          {action} →
+        </a>
+      )}
+    </div>
+  );
+}
+
+/* ── Empty State ── */
+export function EmptyState({ icon, title, sub, action, onAction }: {
+  icon: string; title: string; sub?: string; action?: string; onAction?: () => void;
+}) {
+  return (
+    <div className="flex flex-col items-center justify-center py-20 text-center">
+      <div className="mb-4 text-7xl">{icon}</div>
+      <h3 className="playfair mb-2 text-2xl font-bold text-foreground">{title}</h3>
+      {sub && <p className="mb-6 max-w-xs text-sm text-muted-foreground leading-relaxed">{sub}</p>}
+      {action && <Btn onClick={onAction} v="outline" sz="sm">{action}</Btn>}
+    </div>
+  );
+}
+
+/* ── Quantity Stepper ── */
+export function QtyStepper({ qty, onDec, onInc, max, min = 1 }: {
+  qty: number; onDec: () => void; onInc: () => void; max?: number; min?: number;
+}) {
+  return (
+    <div className="inline-flex overflow-hidden rounded-xl border border-border bg-muted">
+      <button 
+        onClick={onDec} 
+        disabled={qty <= min}
+        className="px-4 py-2 text-xl font-bold transition-hover hover:bg-background disabled:opacity-30"
+      >
+        −
+      </button>
+      <span className="flex min-w-[60px] items-center justify-center bg-card px-4 font-black text-foreground">
+        {qty}
+      </span>
+      <button 
+        onClick={onInc} 
+        disabled={max !== undefined && qty >= max}
+        className="px-4 py-2 text-xl font-bold transition-hover hover:bg-background disabled:opacity-30"
+      >
+        +
+      </button>
+    </div>
+  );
+}
+
+/* ── Chip (filter tag) ── */
+export function Chip({ label, onDel }: { label: string; onDel: () => void }) {
+  return (
+    <span className="inline-flex items-center gap-2 rounded-full border border-primary/20 bg-primary/10 px-3 py-1 text-xs font-bold text-primary">
+      {label}
+      <button onClick={onDel} className="text-lg leading-none hover:opacity-70">×</button>
+    </span>
   );
 }
