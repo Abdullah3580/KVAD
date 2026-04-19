@@ -91,8 +91,8 @@ export default function ProductPage() {
               alt={p.name}
               className="w-full h-full object-cover"
             />
-            {d >= 10 && <Badge text={`-${d}%`} type="danger" style={{ position: "absolute", top: 14, left: 14 }} />}
-            {p.is_featured && <Badge text="FEATURED" type="gold" style={{ position: "absolute", top: 14, left: d >= 10 ? 72 : 14 }} />}
+            {d >= 10 && <Badge text={`-${d}%`} type="danger" className="absolute top-4 left-4" />}
+            {p.is_featured && <Badge text="FEATURED" type="gold" className={`absolute top-4 ${d >= 10 ? 'left-[72px]' : 'left-4'}`} />}
             {p.stock === 0 && (
               <div style={{ position: "absolute", inset: 0, background: "rgba(8,8,16,.7)", display: "flex", alignItems: "center", justifyContent: "center" }}>
                 <span style={{ background: T.danger, color: "#fff", padding: "8px 24px", borderRadius: 8, fontWeight: 900, fontSize: 18 }}>স্টক শেষ</span>
