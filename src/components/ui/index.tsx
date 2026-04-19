@@ -1,6 +1,6 @@
 /* src/components/ui/index.tsx */
 "use client";
-import { useState, ReactNode } from "react";
+import { useState, ReactNode, CSSProperties } from "react"; // CSSProperties যোগ করা হয়েছে
 
 /* ── Button ── */
 type BtnVariant = "coral" | "ghost" | "outline" | "danger" | "ok" | "dark" | "gold";
@@ -27,22 +27,24 @@ const BTN_SIZES: Record<BtnSize, string> = {
 export function Btn({
   children, onClick, v = "coral", sz = "md",
   disabled = false, full = false, className = "", href, loading = false,
+  style, // style প্রোপটি রিসিভ করা হচ্ছে
 }: {
   children: ReactNode; onClick?: () => void; v?: BtnVariant; sz?: BtnSize;
   disabled?: boolean; full?: boolean; className?: string; href?: string;
-  loading?: boolean;
+  loading?: boolean; style?: CSSProperties; // টাইপ ডিফাইন করা হয়েছে
 }) {
   const baseClass = `inline-flex items-center justify-center gap-2 font-bold rounded-xl transition-all duration-200 border active:scale-[0.98] ${
     disabled || loading ? "opacity-50 cursor-not-allowed" : "cursor-pointer"
   } ${full ? "w-full" : "w-auto"} ${BTN_VARIANTS[v]} ${BTN_SIZES[sz]} ${className}`;
 
-  if (href) return <a href={href} className={baseClass}>{children}</a>;
+  if (href) return <a href={href} className={baseClass} style={style}>{children}</a>;
 
   return (
     <button 
       onClick={disabled || loading ? undefined : onClick}
       disabled={disabled || loading}
       className={baseClass}
+      style={style} // এখানে style যোগ করা হয়েছে
     >
       {loading && <span className="h-4 w-4 animate-spin rounded-full border-2 border-current border-t-transparent" />}
       {children}
