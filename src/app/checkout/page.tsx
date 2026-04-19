@@ -312,14 +312,32 @@ export default function CheckoutPage() {
           <div style={{ background:T.card, border:`1px solid ${T.border}`, borderRadius:16, padding:22, position:"sticky", top:140 }}>
             <h3 className="playfair" style={{ fontWeight:700, fontSize:17, marginBottom:16 }}>অর্ডার সারসংক্ষেপ</h3>
             <div style={{ display:"flex", flexDirection:"column", gap:8, marginBottom:14, maxHeight:240, overflowY:"auto" }}>
-              {cart.map(item=>(
-                <div key={item.cartKey} style={{ display:"flex", gap:10, alignItems:"center" }}>
-                  <div style={{ position:"relative" }}>
-                    <SafeImg src={item.img} alt={item.name} style={{ width:44, height:44, objectFit:"cover", borderRadius:7, flexShrink:0 }}/>
-                    <span style={{ position:"absolute", top:-6, right:-6, background:T.coral, color:"#000", borderRadius:"50%", width:18, height:18, fontSize:9, fontWeight:900, display:"flex", alignItems:"center", justifyContent:"center" }}>{item.qty}</span>
+              {cart.map(item => (
+                <div 
+                  key={item.cartKey} 
+                  className="flex items-center gap-3 p-4 bg-card rounded-2xl border border-border"
+                >
+                  {/* SafeImg with className (style সরিয়ে দেওয়া হয়েছে) */}
+                  <div className="relative flex-shrink-0">
+                    <SafeImg 
+                      src={item.img} 
+                      alt={item.name}
+                      className="w-[44px] h-[44px] object-cover rounded-lg"
+                    />
+                    <span className="absolute -top-1.5 -right-1.5 bg-primary text-primary-foreground text-[10px] font-bold w-5 h-5 flex items-center justify-center rounded-full">
+                      {item.qty}
+                    </span>
                   </div>
-                  <p style={{ fontSize:12, flex:1, lineHeight:1.3, overflow:"hidden", display:"-webkit-box", WebkitLineClamp:2, WebkitBoxOrient:"vertical" as React.CSSProperties["WebkitBoxOrient"] }}>{item.name}</p>
-                  <span style={{ fontWeight:700, fontSize:13, flexShrink:0 }}>{fmt(item.price*item.qty)}</span>
+
+                  {/* Product Name */}
+                  <p className="flex-1 text-sm font-medium line-clamp-2">
+                    {item.name}
+                  </p>
+
+                  {/* Price */}
+                  <span className="font-semibold text-sm whitespace-nowrap">
+                    {fmt(item.price * item.qty)}
+                  </span>
                 </div>
               ))}
             </div>
