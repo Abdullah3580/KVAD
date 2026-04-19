@@ -149,15 +149,30 @@ export default function OrdersPage() {
 
                     {/* Items */}
                     {o.items && o.items.length > 0 && (
-                      <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+                      <div className="flex flex-col gap-3 mt-4">
                         {o.items.map(item => (
-                          <div key={item.id} style={{ display: "flex", gap: 10, alignItems: "center", padding: "8px 12px", background: T.raised, borderRadius: 9 }}>
-                            {item.product_image && <SafeImg src={item.product_image} alt={item.product_name} style={{ width: 48, height: 48, objectFit: "cover", borderRadius: 7, flexShrink: 0 }}/>}
-                            <div style={{ flex: 1, minWidth: 0 }}>
-                              <p style={{ fontWeight: 700, fontSize: 13, overflow: "hidden", whiteSpace: "nowrap", textOverflow: "ellipsis" }}>{item.product_name}</p>
-                              <p style={{ fontSize: 12, color: T.muted }}>{item.quantity} × {fmt(item.unit_price)}</p>
+                          <div 
+                            key={item.id} 
+                            className="flex gap-4 items-center p-4 bg-muted/50 rounded-xl"
+                          >
+                            {item.product_image && (
+                              <SafeImg 
+                                src={item.product_image} 
+                                alt={item.product_name}
+                                className="w-12 h-12 object-cover rounded-lg flex-shrink-0"
+                              />
+                            )}
+
+                            <div className="flex-1 min-w-0">
+                              <p className="font-medium text-sm line-clamp-2">{item.product_name}</p>
+                              <p className="text-xs text-muted-foreground mt-1">
+                                {item.quantity} × {fmt(item.unit_price)}
+                              </p>
                             </div>
-                            <span style={{ fontWeight: 700, color: T.coral, flexShrink: 0 }}>{fmt(item.unit_price * item.quantity)}</span>
+
+                            <div className="font-semibold text-sm whitespace-nowrap">
+                              {fmt(item.unit_price * item.quantity)}
+                            </div>
                           </div>
                         ))}
                       </div>
